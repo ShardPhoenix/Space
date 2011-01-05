@@ -2,6 +2,16 @@
 constants =
     WIDTH: 800
     HEIGHT: 600
+    MILLIS_PER_TICK: 30
+    
+keys =
+    LEFT: 37
+    UP: 38
+    RIGHT: 39
+    DOWN: 40
+    
+input =
+    keysHeld: []
 
 class Renderer
     constructor: ->
@@ -17,30 +27,61 @@ class Renderer
     render: (model) ->
         this.clear()
         #this.drawRect(Math.random() * 100, Math.random() * 100, Math.random() * 100, Math.random() * 100, "rgba(255,0,0,1.0)")
+        this.drawRect(model.player.pos[0], model.player.pos[1], 20, 20, "rgba(255,0,0,1.0)")
+
+class Player
+    constructor: ->
+        @hp = 100
+        @heading = 135.0 # degrees, up = 0
+        @pos = [200, 200] # x, y
+        @speed = 1.0
+        @rot_speed = 90.0 #degrees per second
+        
+    update: ->
+        #TODO: do these in terms of time instead of frame
+        if input.keysHeld[keys.UP]
+            theta = 0.0174532925 * @heading
+            @pos[0] += @speed * Math.sin(theta)
+            @pos[1] -= @speed * Math.cos(theta)
+            
+        if input.keysHeld[keys.LEFT]
+            @heading -= 5.0
+        if input.keysHeld[keys.RIGHT]
+            @heading += 5.0
+        
+        
+class Model
+    constructor: ->
+        @player = new Player
+
+    update: ->
+        @player.update()
         
 
-class GameModel
-    update: ->
 
-
-class GameController
+class Controller
     constructor: ->
-        @gameModel = new GameModel
+        @model = new Model
         @renderer = new Renderer
 
     tick: ->
-        @gameModel.update()
-        @renderer.render(null)
+        @model.update()
+        @renderer.render(@model)
             
+   
+controller = new Controller
 
-           
-gameController = new GameController
+document.onkeydown = (event) ->
+    input.keysHeld[event.keyCode] = true
+    
+document.onkeyup = (event) ->
+    input.keysHeld[event.keyCode] = false
 
 gameTick = () ->
-    gameController.tick()
+    controller.tick()
 
 window.onload = () ->
-    setInterval(gameTick, 30);
+    setInterval(gameTick, constants.MILLIS_PER_TICK);
 
 
 
