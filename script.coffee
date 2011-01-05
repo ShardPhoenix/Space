@@ -26,16 +26,21 @@ class Renderer
     
     render: (model) ->
         this.clear()
-        #this.drawRect(Math.random() * 100, Math.random() * 100, Math.random() * 100, Math.random() * 100, "rgba(255,0,0,1.0)")
-        this.drawRect(model.player.pos[0], model.player.pos[1], 20, 20, "rgba(255,0,0,1.0)")
+        @ctx.save()
+        @ctx.translate(model.player.pos[0], model.player.pos[1])
+        @ctx.rotate(0.0174532925 * model.player.heading)
+        this.drawRect(-model.player.width/2, -model.player.length/2, model.player.width, model.player.length, "rgba(255,0,0,1.0)")
+        @ctx.restore()
 
 class Player
     constructor: ->
         @hp = 100
         @heading = 135.0 # degrees, up = 0
         @pos = [200, 200] # x, y
-        @speed = 1.0
+        @speed = 3.0
         @rot_speed = 90.0 #degrees per second
+        @width = 20
+        @length = 40
         
     update: ->
         #TODO: do these in terms of time instead of frame

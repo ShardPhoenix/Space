@@ -27,7 +27,11 @@
     };
     Renderer.prototype.render = function(model) {
       this.clear();
-      return this.drawRect(model.player.pos[0], model.player.pos[1], 20, 20, "rgba(255,0,0,1.0)");
+      this.ctx.save();
+      this.ctx.translate(model.player.pos[0], model.player.pos[1]);
+      this.ctx.rotate(0.0174532925 * model.player.heading);
+      this.drawRect(-model.player.width / 2, -model.player.length / 2, model.player.width, model.player.length, "rgba(255,0,0,1.0)");
+      return this.ctx.restore();
     };
     return Renderer;
   })();
@@ -36,8 +40,10 @@
       this.hp = 100;
       this.heading = 135.0;
       this.pos = [200, 200];
-      this.speed = 1.0;
+      this.speed = 3.0;
       this.rot_speed = 90.0;
+      this.width = 20;
+      this.length = 40;
     }
     Player.prototype.update = function() {
       var theta;
