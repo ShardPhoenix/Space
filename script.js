@@ -1,8 +1,8 @@
 (function() {
   var Controller, Model, Player, Renderer, constants, controller, gameTick, input, keys;
   constants = {
-    WIDTH: 800,
-    HEIGHT: 600,
+    WIDTH: 1024,
+    HEIGHT: 768,
     MILLIS_PER_TICK: 30
   };
   keys = {
