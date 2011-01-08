@@ -23,9 +23,21 @@ state =
     DYING: 1
     DEAD: 2
     
+orders =
+    MOVE: 0
+    ATTACK: 1
+    STOP : 2
+    
+mouseButtons =
+    LEFT: 0
+    RIGHT: 2
+    WHEEL: 1
+    
 utils =
     degToRad: (degrees) ->
         0.0174532925 * degrees
+    radToDeg: (radians) ->
+        57.295779578 * radians
     currentTimeMillis: ->
         d = new Date();
         d.getTime();
@@ -33,6 +45,8 @@ utils =
         if a > b then a else b
     min: (a, b) ->
         if a > b then b else a
+    abs: (a) ->
+        if a < 0 then -1*a else a
               
 input =
     xOffset: 0
@@ -54,11 +68,11 @@ document.onkeyup = (event) ->
 #disable the right-click context menu
 document.captureEvents(Event.ONCONTEXTMENU)
 document.oncontextmenu = (event) ->
-    return false
+    return false    
     
 $("html").mousedown((event) ->
-    event.preventDefault()
-    event.stopPropagation()
+    #event.preventDefault()
+    #event.stopPropagation()
     $("#debug").text("Mouse button #{event.button} down at: #{event.clientX} left #{event.clientY} down")
     input.mouseHeld[event.button] = {x: event.clientX - input.xOffset, y: event.clientY - input.yOffset})
     
@@ -72,7 +86,7 @@ $("html").mouseup((event) ->
     startPos = input.mouseHeld[event.button]
     upX = event.pageX - input.xOffset
     upY = event.pageY - input.yOffset
-    if startPos
+    if startPos and event.button == mouseButtons.LEFT
         input.boxDrawn = 
             topLeft:
                 x: utils.min(startPos.x, upX)
@@ -80,10 +94,18 @@ $("html").mouseup((event) ->
             bottomRight:
                 x: utils.max(startPos.x, upX)
                 y: utils.max(startPos.y, upY)
+            handled: false      
+        
+    input.mouseHeld[event.button] = false
+
+    if startPos
+        input.mouseClicked[event.button] = 
+            coord: 
+                x: event.clientX - input.xOffset
+                y: event.clientY - input.yOffset
             handled: false
     
-    $("#debug").text("Mouse button #{event.button} up at: #{event.clientX} left #{event.clientY} down")
-    input.mouseHeld[event.button] = false)
+    $("#debug").text("Mouse button #{event.button} up at: #{event.clientX} left #{event.clientY} down"))
 
 class Renderer
     constructor: ->
@@ -186,31 +208,62 @@ class Player
 class Ship
     constructor: (coord) ->
         @hp = 50
+        @speed = 300
         @heading = 0.0
         @coord = coord
+        @targetCoord = coord
         @width = 20
         @length = 40
         @color = colors.BLUE
         @state = state.ACTIVE
         @selected = false
+        @order
+        @orderType
         
     update : (dt) ->
+        if @order
+            @targetCoord = @order.targetCoord
+            @orderType = @order.orderType
+            
+        if @orderType == orders.MOVE and (@coord.x != @targetCoord.x or @coord.y != @targetCoord.y)
+           
+            dx = @targetCoord.x - @coord.x
+            dy = @targetCoord.y - @coord.y
+            theta = Math.atan2(dy, dx)
+            
+            #@heading = utils.radToDeg(theta)
+            
+            $("#debug").text("Heading: #{@heading}")
+            
+            dist = @speed * dt/1000.0
+            
+            #TODO: do "magic boxes" or similar instead
+            dx2 = dist * Math.cos(theta)
+            dy2 = dist * Math.sin(theta)
+            @coord.x += if utils.abs(dx) > utils.abs(dx2) then dx2 else dx
+            @coord.y += if utils.abs(dy) > utils.abs(dy2) then dy2 else dy      
         
 
 class GameModel
     constructor: ->
         @model = 
             player: new Player
-            ships: (new Ship({x: Math.random() * constants.WIDTH, y: Math.random() * constants.HEIGHT}) for i in [1..10])
+            ships: (new Ship({x: Math.round(Math.random() * constants.WIDTH), y: Math.round(Math.random() * constants.HEIGHT)}) for i in [1..10])
             selected: []
             bullets: []
 
     update: (dt) ->
+        rightClick = input.mouseClicked[mouseButtons.RIGHT]
+        if rightClick and !rightClick.handled    
+            for ship in @model.ships
+                if ship.selected                 
+                    ship.order = {targetCoord: rightClick.coord, orderType: orders.MOVE}
+            rightClick.handled = true
+    
         if !input.boxDrawn.handled
             for ship in @model.ships 
                 ship.selected = input.isInBox(ship.coord)
-            input.boxDrawn.handled = true
-    
+            input.boxDrawn.handled = true                 
     
         @model.player.update(dt, @model)
         ship.update(dt) for ship in @model.ships
@@ -224,6 +277,9 @@ class Controller
         @gameModel = new GameModel
         @renderer = new Renderer
         @lastTime = (new Date).getTime()
+        @frames = 0
+        @startTime = utils.currentTimeMillis()
+        @fpsIndicator = $("#fps")
 
     tick: ->
         d = new Date();
@@ -233,6 +289,12 @@ class Controller
         
         @gameModel.update(dt)
         @renderer.render(@gameModel.model)
+        
+        @fpsIndicator.text(Math.round(1000 * @frames/(utils.currentTimeMillis() - @startTime)) + " fps")
+        if (utils.currentTimeMillis() - @startTime) > 5000
+            @startTime = utils.currentTimeMillis()
+            @frames = 0
+        @frames++
             
    
 controller = new Controller

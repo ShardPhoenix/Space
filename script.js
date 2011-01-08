@@ -1,5 +1,5 @@
 (function() {
-  var Controller, GameModel, Player, Renderer, Rocket, RocketLauncher, Ship, colors, constants, controller, gameTick, input, keys, state, utils;
+  var Controller, GameModel, Player, Renderer, Rocket, RocketLauncher, Ship, colors, constants, controller, gameTick, input, keys, mouseButtons, orders, state, utils;
   constants = {
     WIDTH: 1024,
     HEIGHT: 768,
@@ -24,9 +24,22 @@
     DYING: 1,
     DEAD: 2
   };
+  orders = {
+    MOVE: 0,
+    ATTACK: 1,
+    STOP: 2
+  };
+  mouseButtons = {
+    LEFT: 0,
+    RIGHT: 2,
+    WHEEL: 1
+  };
   utils = {
     degToRad: function(degrees) {
       return 0.0174532925 * degrees;
+    },
+    radToDeg: function(radians) {
+      return 57.295779578 * radians;
     },
     currentTimeMillis: function() {
       var d;
@@ -43,6 +56,13 @@
     min: function(a, b) {
       if (a > b) {
         return b;
+      } else {
+        return a;
+      }
+    },
+    abs: function(a) {
+      if (a < 0) {
+        return -1 * a;
       } else {
         return a;
       }
@@ -72,8 +92,6 @@
     return false;
   };
   $("html").mousedown(function(event) {
-    event.preventDefault();
-    event.stopPropagation();
     $("#debug").text("Mouse button " + event.button + " down at: " + event.clientX + " left " + event.clientY + " down");
     return input.mouseHeld[event.button] = {
       x: event.clientX - input.xOffset,
@@ -91,7 +109,7 @@
     startPos = input.mouseHeld[event.button];
     upX = event.pageX - input.xOffset;
     upY = event.pageY - input.yOffset;
-    if (startPos) {
+    if (startPos && event.button === mouseButtons.LEFT) {
       input.boxDrawn = {
         topLeft: {
           x: utils.min(startPos.x, upX),
@@ -104,8 +122,17 @@
         handled: false
       };
     }
-    $("#debug").text("Mouse button " + event.button + " up at: " + event.clientX + " left " + event.clientY + " down");
-    return input.mouseHeld[event.button] = false;
+    input.mouseHeld[event.button] = false;
+    if (startPos) {
+      input.mouseClicked[event.button] = {
+        coord: {
+          x: event.clientX - input.xOffset,
+          y: event.clientY - input.yOffset
+        },
+        handled: false
+      };
+    }
+    return $("#debug").text("Mouse button " + event.button + " up at: " + event.clientX + " left " + event.clientY + " down");
   });
   Renderer = (function() {
     function Renderer() {
@@ -236,15 +263,36 @@
   Ship = (function() {
     function Ship(coord) {
       this.hp = 50;
+      this.speed = 300;
       this.heading = 0.0;
       this.coord = coord;
+      this.targetCoord = coord;
       this.width = 20;
       this.length = 40;
       this.color = colors.BLUE;
       this.state = state.ACTIVE;
       this.selected = false;
+      this.order;
+      this.orderType;
     }
-    Ship.prototype.update = function(dt) {};
+    Ship.prototype.update = function(dt) {
+      var dist, dx, dx2, dy, dy2, theta;
+      if (this.order) {
+        this.targetCoord = this.order.targetCoord;
+        this.orderType = this.order.orderType;
+      }
+      if (this.orderType === orders.MOVE && (this.coord.x !== this.targetCoord.x || this.coord.y !== this.targetCoord.y)) {
+        dx = this.targetCoord.x - this.coord.x;
+        dy = this.targetCoord.y - this.coord.y;
+        theta = Math.atan2(dy, dx);
+        $("#debug").text("Heading: " + this.heading);
+        dist = this.speed * dt / 1000.0;
+        dx2 = dist * Math.cos(theta);
+        dy2 = dist * Math.sin(theta);
+        this.coord.x += utils.abs(dx) > utils.abs(dx2) ? dx2 : dx;
+        return this.coord.y += utils.abs(dy) > utils.abs(dy2) ? dy2 : dy;
+      }
+    };
     return Ship;
   })();
   GameModel = (function() {
@@ -257,8 +305,8 @@
           _results = [];
           for (i = 1; i <= 10; i++) {
             _results.push(new Ship({
-              x: Math.random() * constants.WIDTH,
-              y: Math.random() * constants.HEIGHT
+              x: Math.round(Math.random() * constants.WIDTH),
+              y: Math.round(Math.random() * constants.HEIGHT)
             }));
           }
           return _results;
@@ -268,24 +316,38 @@
       };
     }
     GameModel.prototype.update = function(dt) {
-      var bullet, ship, _i, _j, _k, _len, _len2, _len3, _ref, _ref2, _ref3;
-      if (!input.boxDrawn.handled) {
+      var bullet, rightClick, ship, _i, _j, _k, _l, _len, _len2, _len3, _len4, _ref, _ref2, _ref3, _ref4;
+      rightClick = input.mouseClicked[mouseButtons.RIGHT];
+      if (rightClick && !rightClick.handled) {
         _ref = this.model.ships;
         for (_i = 0, _len = _ref.length; _i < _len; _i++) {
           ship = _ref[_i];
+          if (ship.selected) {
+            ship.order = {
+              targetCoord: rightClick.coord,
+              orderType: orders.MOVE
+            };
+          }
+        }
+        rightClick.handled = true;
+      }
+      if (!input.boxDrawn.handled) {
+        _ref2 = this.model.ships;
+        for (_j = 0, _len2 = _ref2.length; _j < _len2; _j++) {
+          ship = _ref2[_j];
           ship.selected = input.isInBox(ship.coord);
         }
         input.boxDrawn.handled = true;
       }
       this.model.player.update(dt, this.model);
-      _ref2 = this.model.ships;
-      for (_j = 0, _len2 = _ref2.length; _j < _len2; _j++) {
-        ship = _ref2[_j];
+      _ref3 = this.model.ships;
+      for (_k = 0, _len3 = _ref3.length; _k < _len3; _k++) {
+        ship = _ref3[_k];
         ship.update(dt);
       }
-      _ref3 = this.model.bullets;
-      for (_k = 0, _len3 = _ref3.length; _k < _len3; _k++) {
-        bullet = _ref3[_k];
+      _ref4 = this.model.bullets;
+      for (_l = 0, _len4 = _ref4.length; _l < _len4; _l++) {
+        bullet = _ref4[_l];
         bullet.update(dt);
       }
       this.model.ships = (function() {
@@ -320,6 +382,9 @@
       this.gameModel = new GameModel;
       this.renderer = new Renderer;
       this.lastTime = (new Date).getTime();
+      this.frames = 0;
+      this.startTime = utils.currentTimeMillis();
+      this.fpsIndicator = $("#fps");
     }
     Controller.prototype.tick = function() {
       var d, dt, time;
@@ -328,7 +393,13 @@
       dt = time - this.lastTime;
       this.lastTime = time;
       this.gameModel.update(dt);
-      return this.renderer.render(this.gameModel.model);
+      this.renderer.render(this.gameModel.model);
+      this.fpsIndicator.text(Math.round(1000 * this.frames / (utils.currentTimeMillis() - this.startTime)) + " fps");
+      if ((utils.currentTimeMillis() - this.startTime) > 5000) {
+        this.startTime = utils.currentTimeMillis();
+        this.frames = 0;
+      }
+      return this.frames++;
     };
     return Controller;
   })();
