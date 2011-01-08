@@ -15,9 +15,8 @@ keys =
 colors =
     RED: "rgba(255,0,0,1.0)"
     BLUE: "rgba(0,0,255,1.0)"
-    
-input =
-    keysHeld: []
+    GREEN: "rgba(0,255,0,1.0)"
+    BACKGROUND: "rgba(0,0,0,1.0)"
     
 state = 
     ACTIVE: 0
@@ -27,6 +26,64 @@ state =
 utils =
     degToRad: (degrees) ->
         0.0174532925 * degrees
+    currentTimeMillis: ->
+        d = new Date();
+        d.getTime();
+    max: (a, b) ->
+        if a > b then a else b
+    min: (a, b) ->
+        if a > b then b else a
+              
+input =
+    xOffset: 0
+    yOffset: 0
+    keysHeld: {}
+    mouseHeld: {}
+    mouseClicked: {}
+    boxDrawn: {handled: true}
+    isInBox: (coord) ->
+        #alert "#{this.boxDrawn.topLeft.x} #{this.boxDrawn.topLeft.y} #{this.boxDrawn.bottomRight.x} #{this.boxDrawn.bottomRight.y}"
+        coord.x > this.boxDrawn.topLeft.x and coord.x < this.boxDrawn.bottomRight.x and coord.y > this.boxDrawn.topLeft.y and coord.y < this.boxDrawn.bottomRight.y
+    
+document.onkeydown = (event) ->
+    input.keysHeld[event.keyCode] = true
+    
+document.onkeyup = (event) ->
+    input.keysHeld[event.keyCode] = false
+
+#disable the right-click context menu
+document.captureEvents(Event.ONCONTEXTMENU)
+document.oncontextmenu = (event) ->
+    return false
+    
+$("html").mousedown((event) ->
+    event.preventDefault()
+    event.stopPropagation()
+    $("#debug").text("Mouse button #{event.button} down at: #{event.clientX} left #{event.clientY} down")
+    input.mouseHeld[event.button] = {x: event.clientX - input.xOffset, y: event.clientY - input.yOffset})
+    
+$("#canvas").mousedown((event) ->
+    input.xOffset = this.offsetLeft
+    input.yOffset = this.offsetTop)
+    
+$("html").mouseup((event) ->
+    event.preventDefault()
+    event.stopPropagation()
+    startPos = input.mouseHeld[event.button]
+    upX = event.pageX - input.xOffset
+    upY = event.pageY - input.yOffset
+    if startPos
+        input.boxDrawn = 
+            topLeft:
+                x: utils.min(startPos.x, upX)
+                y: utils.min(startPos.y, upY)
+            bottomRight:
+                x: utils.max(startPos.x, upX)
+                y: utils.max(startPos.y, upY)
+            handled: false
+    
+    $("#debug").text("Mouse button #{event.button} up at: #{event.clientX} left #{event.clientY} down")
+    input.mouseHeld[event.button] = false)
 
 class Renderer
     constructor: ->
@@ -37,13 +94,17 @@ class Renderer
         @ctx.fillRect(x, y, width, height)
         
     clear: ->
-        this.drawRect(0, 0, constants.WIDTH, constants.HEIGHT, "rgba(255,255,255,1.0)")
+        this.drawRect(0, 0, constants.WIDTH, constants.HEIGHT, colors.BACKGROUND)
         
     renderShip: (ship) ->
         @ctx.save()
         @ctx.translate(ship.coord.x, ship.coord.y)
         @ctx.rotate(0.0174532925 * ship.heading)
         this.drawRect(-ship.width/2, -ship.length/2, ship.width, ship.length, ship.color)
+        if ship.selected
+            @ctx.lineWidth = 2
+            @ctx.strokeStyle = colors.GREEN
+            @ctx.strokeRect(-ship.width/2, -ship.length/2, ship.width, ship.length)
         @ctx.restore()
     
     render: (model) ->
@@ -58,7 +119,7 @@ class Rocket
         @maxDist = 300.0
         @damage = 100
         @radius = 100
-        @speed = 400.0
+        @speed = 600.0
         @coord = coord
         @heading = heading
         @color = colors.RED
@@ -79,6 +140,21 @@ class Rocket
             #TODO: explode
             @state = state.DEAD
         
+
+class RocketLauncher
+    constructor: ->
+        @cooldown = 250 #milliseconds
+        @bulletClass = Rocket
+        @lastFired = utils.currentTimeMillis()
+       
+    readyToFire: ->    
+        (utils.currentTimeMillis() - @lastFired) > @cooldown
+       
+    tryFire: (coord, heading, list) ->
+        if (this.readyToFire())
+            list.push(new @bulletClass(coord, heading))
+            @lastFired = utils.currentTimeMillis()
+
         
 class Player
     constructor: ->
@@ -92,6 +168,8 @@ class Player
         @color = colors.RED
         @state = state.ACTIVE
         
+        @rocketLauncher = new RocketLauncher
+        
     update: (dt, model) ->
         if input.keysHeld[keys.UP]
             dist = @speed * dt/1000.0
@@ -103,7 +181,7 @@ class Player
         if input.keysHeld[keys.RIGHT]
             @heading += @rotSpeed * dt/1000.0
         if input.keysHeld[keys.CTRL]
-            model.bullets.push(new Rocket({x: @coord.x, y: @coord.y}, @heading))
+            @rocketLauncher.tryFire({x: @coord.x, y: @coord.y}, @heading, model.bullets)
         
 class Ship
     constructor: (coord) ->
@@ -114,32 +192,36 @@ class Ship
         @length = 40
         @color = colors.BLUE
         @state = state.ACTIVE
+        @selected = false
         
     update : (dt) ->
         
 
-class Model
+class GameModel
     constructor: ->
-        @player = new Player
-        @ships = (new Ship({x: Math.random() * constants.WIDTH, y: Math.random() * constants.HEIGHT}) for i in [1..10])
-        @bullets = []
+        @model = 
+            player: new Player
+            ships: (new Ship({x: Math.random() * constants.WIDTH, y: Math.random() * constants.HEIGHT}) for i in [1..10])
+            selected: []
+            bullets: []
 
     update: (dt) ->
-        @player.update(dt, this)
-        ship.update(dt) for ship in @ships
-        for bullet in @bullets
-            if bullet
-                bullet.update(dt) 
-        
-        @ships = for ship in @ships
-            if ship.state != state.DEAD
-                ship
-        
-        @bullets = (bullet for bullet in (bullet for bullet in @bullets when bullet.state != state.DEAD) when bullet)
+        if !input.boxDrawn.handled
+            for ship in @model.ships 
+                ship.selected = input.isInBox(ship.coord)
+            input.boxDrawn.handled = true
+    
+    
+        @model.player.update(dt, @model)
+        ship.update(dt) for ship in @model.ships
+        bullet.update(dt) for bullet in @model.bullets
+                      
+        @model.ships = (ship for ship in @model.ships when ship.state != state.DEAD)     
+        @model.bullets = (bullet for bullet in @model.bullets when bullet.state != state.DEAD)
 
 class Controller
     constructor: ->
-        @model = new Model
+        @gameModel = new GameModel
         @renderer = new Renderer
         @lastTime = (new Date).getTime()
 
@@ -149,17 +231,11 @@ class Controller
         dt = time - @lastTime
         @lastTime = time
         
-        @model.update(dt)
-        @renderer.render(@model)
+        @gameModel.update(dt)
+        @renderer.render(@gameModel.model)
             
    
 controller = new Controller
-
-document.onkeydown = (event) ->
-    input.keysHeld[event.keyCode] = true
-    
-document.onkeyup = (event) ->
-    input.keysHeld[event.keyCode] = false
 
 gameTick = () ->
     controller.tick()
