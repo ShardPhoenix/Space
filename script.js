@@ -1,5 +1,5 @@
 (function() {
-  var Controller, GameModel, Player, Renderer, Rocket, RocketLauncher, Ship, colors, constants, controller, gameTick, input, keys, mouseButtons, orders, state, utils;
+  var Controller, GameModel, Player, Renderer, Rocket, RocketLauncher, Ship, colors, constants, controller, input, keys, mouseButtons, orders, state, utils;
   constants = {
     WIDTH: 1024,
     HEIGHT: 768,
@@ -74,11 +74,15 @@
     keysHeld: {},
     mouseHeld: {},
     mouseClicked: {},
-    boxDrawn: {
+    mousePos: {
+      x: 0,
+      y: 0
+    },
+    selectBox: {
       handled: true
     },
     isInBox: function(coord) {
-      return coord.x > this.boxDrawn.topLeft.x && coord.x < this.boxDrawn.bottomRight.x && coord.y > this.boxDrawn.topLeft.y && coord.y < this.boxDrawn.bottomRight.y;
+      return coord.x > this.selectBox.topLeft.x && coord.x < this.selectBox.bottomRight.x && coord.y > this.selectBox.topLeft.y && coord.y < this.selectBox.bottomRight.y;
     }
   };
   document.onkeydown = function(event) {
@@ -91,16 +95,21 @@
   document.oncontextmenu = function(event) {
     return false;
   };
+  $("#canvas").mousedown(function(event) {
+    input.xOffset = this.offsetLeft;
+    return input.yOffset = this.offsetTop;
+  });
+  $("html").mousemove(function(event) {
+    input.mousePos.x = event.clientX - input.xOffset;
+    input.mousePos.y = event.clientY - input.yOffset;
+    return $("#mousePos").text("X: " + input.mousePos.x + ", Y: " + input.mousePos.y);
+  });
   $("html").mousedown(function(event) {
     $("#debug").text("Mouse button " + event.button + " down at: " + event.clientX + " left " + event.clientY + " down");
     return input.mouseHeld[event.button] = {
       x: event.clientX - input.xOffset,
       y: event.clientY - input.yOffset
     };
-  });
-  $("#canvas").mousedown(function(event) {
-    input.xOffset = this.offsetLeft;
-    return input.yOffset = this.offsetTop;
   });
   $("html").mouseup(function(event) {
     var startPos, upX, upY;
@@ -109,8 +118,8 @@
     startPos = input.mouseHeld[event.button];
     upX = event.pageX - input.xOffset;
     upY = event.pageY - input.yOffset;
-    if (startPos && event.button === mouseButtons.LEFT) {
-      input.boxDrawn = {
+    if (startPos && event.button === mouseButtons.LEFT && (startPos.x !== upX || startPos.y !== upY)) {
+      input.selectBox = {
         topLeft: {
           x: utils.min(startPos.x, upX),
           y: utils.min(startPos.y, upY)
@@ -148,8 +157,9 @@
     Renderer.prototype.renderShip = function(ship) {
       this.ctx.save();
       this.ctx.translate(ship.coord.x, ship.coord.y);
-      this.ctx.rotate(-1 * (Math.PI / 2 - utils.degToRad(ship.heading)));
+      this.ctx.rotate(utils.degToRad(ship.heading) - Math.PI / 2);
       this.drawRect(-ship.width / 2, -ship.length / 2, ship.width, ship.length, ship.color);
+      this.drawRect(0, 0, 1, 1, colors.RED);
       if (ship.selected) {
         this.ctx.lineWidth = 2;
         this.ctx.strokeStyle = colors.GREEN;
@@ -158,7 +168,7 @@
       return this.ctx.restore();
     };
     Renderer.prototype.render = function(model) {
-      var bullet, ship, _i, _j, _len, _len2, _ref, _ref2;
+      var bullet, leftPress, ship, _i, _j, _len, _len2, _ref, _ref2;
       this.clear();
       _ref = model.ships;
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
@@ -170,7 +180,13 @@
         bullet = _ref2[_j];
         this.renderShip(bullet);
       }
-      return this.renderShip(model.player);
+      this.renderShip(model.player);
+      leftPress = input.mouseHeld[mouseButtons.LEFT];
+      if (leftPress) {
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeStyle = colors.GREEN;
+        return this.ctx.strokeRect(leftPress.x, leftPress.y, input.mousePos.x - leftPress.x, input.mousePos.y - leftPress.y);
+      }
     };
     return Renderer;
   })();
@@ -317,9 +333,9 @@
       };
     }
     GameModel.prototype.update = function(dt) {
-      var bullet, rightClick, ship, _i, _j, _k, _l, _len, _len2, _len3, _len4, _ref, _ref2, _ref3, _ref4;
+      var bullet, leftClick, measure, rightClick, ship, _i, _j, _k, _l, _len, _len2, _len3, _len4, _len5, _m, _ref, _ref2, _ref3, _ref4, _ref5;
       rightClick = input.mouseClicked[mouseButtons.RIGHT];
-      if (rightClick && !rightClick.handled) {
+      if ((rightClick != null) && !rightClick.handled) {
         _ref = this.model.ships;
         for (_i = 0, _len = _ref.length; _i < _len; _i++) {
           ship = _ref[_i];
@@ -332,23 +348,43 @@
         }
         rightClick.handled = true;
       }
-      if (!input.boxDrawn.handled) {
+      leftClick = input.mouseClicked[mouseButtons.LEFT];
+      if ((leftClick != null) && !leftClick.handled) {
         _ref2 = this.model.ships;
         for (_j = 0, _len2 = _ref2.length; _j < _len2; _j++) {
           ship = _ref2[_j];
+          /*
+          angle = utils.degToRad(ship.heading)
+          #rotation matrix
+          dx = leftClick.coord.x - ship.coord.x
+          dy = leftClick.coord.y - ship.coord.y
+          rotX = dx * Math.cos(angle) - dy * Math.sin(angle)
+          rotY = dx * Math.sin(angle) - dy * Math.cos(angle)
+
+          ship.selected = utils.abs(rotX) < ship.width/2 and utils.abs(rotY) < ship.length/2
+          */
+          measure = ship.length > ship.width ? ship.length : ship.width;
+          ship.selected = utils.abs(leftClick.coord.x - ship.coord.x) < measure / 2 && utils.abs(leftClick.coord.y - ship.coord.y) < measure / 2;
+        }
+        leftClick.handled = true;
+      }
+      if (!input.selectBox.handled) {
+        _ref3 = this.model.ships;
+        for (_k = 0, _len3 = _ref3.length; _k < _len3; _k++) {
+          ship = _ref3[_k];
           ship.selected = input.isInBox(ship.coord);
         }
-        input.boxDrawn.handled = true;
+        input.selectBox.handled = true;
       }
       this.model.player.update(dt, this.model);
-      _ref3 = this.model.ships;
-      for (_k = 0, _len3 = _ref3.length; _k < _len3; _k++) {
-        ship = _ref3[_k];
+      _ref4 = this.model.ships;
+      for (_l = 0, _len4 = _ref4.length; _l < _len4; _l++) {
+        ship = _ref4[_l];
         ship.update(dt);
       }
-      _ref4 = this.model.bullets;
-      for (_l = 0, _len4 = _ref4.length; _l < _len4; _l++) {
-        bullet = _ref4[_l];
+      _ref5 = this.model.bullets;
+      for (_m = 0, _len5 = _ref5.length; _m < _len5; _m++) {
+        bullet = _ref5[_m];
         bullet.update(dt);
       }
       this.model.ships = (function() {
@@ -405,10 +441,7 @@
     return Controller;
   })();
   controller = new Controller;
-  gameTick = function() {
+  $(setInterval((function() {
     return controller.tick();
-  };
-  window.onload = function() {
-    return setInterval(gameTick, constants.MILLIS_PER_TICK);
-  };
+  }), constants.MILLIS_PER_TICK));
 }).call(this);

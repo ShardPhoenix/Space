@@ -54,10 +54,10 @@ input =
     keysHeld: {}
     mouseHeld: {}
     mouseClicked: {}
-    boxDrawn: {handled: true}
+    mousePos: {x: 0, y: 0}
+    selectBox: {handled: true}
     isInBox: (coord) ->
-        #alert "#{this.boxDrawn.topLeft.x} #{this.boxDrawn.topLeft.y} #{this.boxDrawn.bottomRight.x} #{this.boxDrawn.bottomRight.y}"
-        coord.x > this.boxDrawn.topLeft.x and coord.x < this.boxDrawn.bottomRight.x and coord.y > this.boxDrawn.topLeft.y and coord.y < this.boxDrawn.bottomRight.y
+        coord.x > this.selectBox.topLeft.x and coord.x < this.selectBox.bottomRight.x and coord.y > this.selectBox.topLeft.y and coord.y < this.selectBox.bottomRight.y
     
 document.onkeydown = (event) ->
     input.keysHeld[event.keyCode] = true
@@ -70,15 +70,21 @@ document.captureEvents(Event.ONCONTEXTMENU)
 document.oncontextmenu = (event) ->
     return false    
     
+#figure out where canvas is relative to the window
+$("#canvas").mousedown((event) ->
+    input.xOffset = this.offsetLeft
+    input.yOffset = this.offsetTop)
+    
+$("html").mousemove((event) ->
+    input.mousePos.x = event.clientX - input.xOffset
+    input.mousePos.y = event.clientY - input.yOffset
+    $("#mousePos").text("X: #{input.mousePos.x}, Y: #{input.mousePos.y}"))
+    
 $("html").mousedown((event) ->
     #event.preventDefault()
     #event.stopPropagation()
     $("#debug").text("Mouse button #{event.button} down at: #{event.clientX} left #{event.clientY} down")
     input.mouseHeld[event.button] = {x: event.clientX - input.xOffset, y: event.clientY - input.yOffset})
-    
-$("#canvas").mousedown((event) ->
-    input.xOffset = this.offsetLeft
-    input.yOffset = this.offsetTop)
     
 $("html").mouseup((event) ->
     event.preventDefault()
@@ -86,8 +92,8 @@ $("html").mouseup((event) ->
     startPos = input.mouseHeld[event.button]
     upX = event.pageX - input.xOffset
     upY = event.pageY - input.yOffset
-    if startPos and event.button == mouseButtons.LEFT
-        input.boxDrawn = 
+    if startPos and event.button == mouseButtons.LEFT and (startPos.x != upX or startPos.y != upY)
+        input.selectBox = 
             topLeft:
                 x: utils.min(startPos.x, upX)
                 y: utils.min(startPos.y, upY)
@@ -119,10 +125,11 @@ class Renderer
         this.drawRect(0, 0, constants.WIDTH, constants.HEIGHT, colors.BACKGROUND)
         
     renderShip: (ship) ->
-        @ctx.save()
+        @ctx.save()      
         @ctx.translate(ship.coord.x, ship.coord.y)
-        @ctx.rotate(-1 * (Math.PI/2 - utils.degToRad(ship.heading)))
+        @ctx.rotate(utils.degToRad(ship.heading) - Math.PI/2)
         this.drawRect(-ship.width/2, -ship.length/2, ship.width, ship.length, ship.color)
+        this.drawRect(0, 0, 1, 1, colors.RED) #color ship's actual coord
         if ship.selected
             @ctx.lineWidth = 2
             @ctx.strokeStyle = colors.GREEN
@@ -134,6 +141,12 @@ class Renderer
         this.renderShip(ship) for ship in model.ships
         this.renderShip(bullet) for bullet in model.bullets
         this.renderShip(model.player)
+        
+        leftPress = input.mouseHeld[mouseButtons.LEFT]
+        if (leftPress)
+            @ctx.lineWidth = 1
+            @ctx.strokeStyle = colors.GREEN
+            @ctx.strokeRect(leftPress.x, leftPress.y, input.mousePos.x - leftPress.x, input.mousePos.y - leftPress.y)
         
 class Rocket
     constructor: (coord, heading) ->
@@ -256,16 +269,34 @@ class GameModel
 
     update: (dt) ->
         rightClick = input.mouseClicked[mouseButtons.RIGHT]
-        if rightClick and !rightClick.handled    
+        if rightClick? and !rightClick.handled
             for ship in @model.ships
                 if ship.selected                 
                     ship.order = {targetCoord: rightClick.coord, orderType: orders.MOVE}
             rightClick.handled = true
+            
+        leftClick = input.mouseClicked[mouseButtons.LEFT]
+        if leftClick? and !leftClick.handled
+            for ship in @model.ships        
+                ###
+                angle = utils.degToRad(ship.heading)
+                #rotation matrix
+                dx = leftClick.coord.x - ship.coord.x
+                dy = leftClick.coord.y - ship.coord.y
+                rotX = dx * Math.cos(angle) - dy * Math.sin(angle)
+                rotY = dx * Math.sin(angle) - dy * Math.cos(angle)
+                
+                ship.selected = utils.abs(rotX) < ship.width/2 and utils.abs(rotY) < ship.length/2
+                ###
+                                 
+                measure = if ship.length > ship.width then ship.length else ship.width
+                ship.selected = utils.abs(leftClick.coord.x - ship.coord.x) < measure/2 and utils.abs(leftClick.coord.y - ship.coord.y) < measure/2
+            leftClick.handled = true
     
-        if !input.boxDrawn.handled
+        if !input.selectBox.handled
             for ship in @model.ships 
                 ship.selected = input.isInBox(ship.coord)
-            input.boxDrawn.handled = true                 
+            input.selectBox.handled = true                 
     
         @model.player.update(dt, @model)
         ship.update(dt) for ship in @model.ships
@@ -296,16 +327,12 @@ class Controller
         if (utils.currentTimeMillis() - @startTime) > 5000
             @startTime = utils.currentTimeMillis()
             @frames = 0
-        @frames++
+        @frames++       
             
    
 controller = new Controller
 
-gameTick = () ->
-    controller.tick()
-
-window.onload = () ->
-    setInterval(gameTick, constants.MILLIS_PER_TICK);
+$(setInterval((-> controller.tick()), constants.MILLIS_PER_TICK));
 
 
 
