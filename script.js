@@ -1,5 +1,11 @@
 (function() {
   var Controller, GameModel, Player, Renderer, Rocket, RocketLauncher, Ship, colors, constants, controller, input, keys, mouseButtons, orders, state, utils;
+  var __indexOf = Array.prototype.indexOf || function(item) {
+    for (var i = 0, l = this.length; i < l; i++) {
+      if (this[i] === item) return i;
+    }
+    return -1;
+  };
   constants = {
     WIDTH: 1024,
     HEIGHT: 768,
@@ -333,7 +339,7 @@
       };
     }
     GameModel.prototype.update = function(dt) {
-      var bullet, leftClick, measure, rightClick, ship, _i, _j, _k, _l, _len, _len2, _len3, _len4, _len5, _m, _ref, _ref2, _ref3, _ref4, _ref5;
+      var bullet, leftClick, measure, rightClick, ship, toBeSelected, _i, _j, _k, _l, _len, _len2, _len3, _len4, _len5, _len6, _len7, _m, _n, _o, _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7;
       rightClick = input.mouseClicked[mouseButtons.RIGHT];
       if ((rightClick != null) && !rightClick.handled) {
         _ref = this.model.ships;
@@ -350,6 +356,7 @@
       }
       leftClick = input.mouseClicked[mouseButtons.LEFT];
       if ((leftClick != null) && !leftClick.handled) {
+        toBeSelected = null;
         _ref2 = this.model.ships;
         for (_j = 0, _len2 = _ref2.length; _j < _len2; _j++) {
           ship = _ref2[_j];
@@ -364,27 +371,47 @@
           ship.selected = utils.abs(rotX) < ship.width/2 and utils.abs(rotY) < ship.length/2
           */
           measure = ship.length > ship.width ? ship.length : ship.width;
-          ship.selected = utils.abs(leftClick.coord.x - ship.coord.x) < measure / 2 && utils.abs(leftClick.coord.y - ship.coord.y) < measure / 2;
+          if (utils.abs(leftClick.coord.x - ship.coord.x) < measure / 2 && utils.abs(leftClick.coord.y - ship.coord.y) < measure / 2) {
+            toBeSelected = ship;
+          }
+        }
+        if (toBeSelected != null) {
+          _ref3 = this.model.ships;
+          for (_k = 0, _len3 = _ref3.length; _k < _len3; _k++) {
+            ship = _ref3[_k];
+            ship.selected = false;
+          }
+          toBeSelected.selected = true;
         }
         leftClick.handled = true;
       }
       if (!input.selectBox.handled) {
-        _ref3 = this.model.ships;
-        for (_k = 0, _len3 = _ref3.length; _k < _len3; _k++) {
-          ship = _ref3[_k];
-          ship.selected = input.isInBox(ship.coord);
+        toBeSelected = [];
+        _ref4 = this.model.ships;
+        for (_l = 0, _len4 = _ref4.length; _l < _len4; _l++) {
+          ship = _ref4[_l];
+          if (input.isInBox(ship.coord)) {
+            toBeSelected.push(ship);
+          }
+        }
+        if (toBeSelected.length > 0) {
+          _ref5 = this.model.ships;
+          for (_m = 0, _len5 = _ref5.length; _m < _len5; _m++) {
+            ship = _ref5[_m];
+            ship.selected = __indexOf.call(toBeSelected, ship) >= 0;
+          }
         }
         input.selectBox.handled = true;
       }
       this.model.player.update(dt, this.model);
-      _ref4 = this.model.ships;
-      for (_l = 0, _len4 = _ref4.length; _l < _len4; _l++) {
-        ship = _ref4[_l];
+      _ref6 = this.model.ships;
+      for (_n = 0, _len6 = _ref6.length; _n < _len6; _n++) {
+        ship = _ref6[_n];
         ship.update(dt);
       }
-      _ref5 = this.model.bullets;
-      for (_m = 0, _len5 = _ref5.length; _m < _len5; _m++) {
-        bullet = _ref5[_m];
+      _ref7 = this.model.bullets;
+      for (_o = 0, _len7 = _ref7.length; _o < _len7; _o++) {
+        bullet = _ref7[_o];
         bullet.update(dt);
       }
       this.model.ships = (function() {

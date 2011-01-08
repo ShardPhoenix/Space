@@ -277,6 +277,7 @@ class GameModel
             
         leftClick = input.mouseClicked[mouseButtons.LEFT]
         if leftClick? and !leftClick.handled
+            toBeSelected = null
             for ship in @model.ships        
                 ###
                 angle = utils.degToRad(ship.heading)
@@ -290,12 +291,23 @@ class GameModel
                 ###
                                  
                 measure = if ship.length > ship.width then ship.length else ship.width
-                ship.selected = utils.abs(leftClick.coord.x - ship.coord.x) < measure/2 and utils.abs(leftClick.coord.y - ship.coord.y) < measure/2
+                if utils.abs(leftClick.coord.x - ship.coord.x) < measure/2 and utils.abs(leftClick.coord.y - ship.coord.y) < measure/2
+                    toBeSelected = ship
+            
+            if toBeSelected?
+                ship.selected = false for ship in @model.ships
+                toBeSelected.selected = true
+                
             leftClick.handled = true
     
         if !input.selectBox.handled
+            toBeSelected = []
             for ship in @model.ships 
-                ship.selected = input.isInBox(ship.coord)
+                if input.isInBox(ship.coord)
+                    toBeSelected.push(ship)
+            if toBeSelected.length > 0
+                for ship in @model.ships
+                    ship.selected = ship in toBeSelected
             input.selectBox.handled = true                 
     
         @model.player.update(dt, @model)
