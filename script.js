@@ -148,7 +148,7 @@
     Renderer.prototype.renderShip = function(ship) {
       this.ctx.save();
       this.ctx.translate(ship.coord.x, ship.coord.y);
-      this.ctx.rotate(0.0174532925 * ship.heading);
+      this.ctx.rotate(-1 * (Math.PI / 2 - utils.degToRad(ship.heading)));
       this.drawRect(-ship.width / 2, -ship.length / 2, ship.width, ship.length, ship.color);
       if (ship.selected) {
         this.ctx.lineWidth = 2;
@@ -261,10 +261,10 @@
     return Player;
   })();
   Ship = (function() {
-    function Ship(coord) {
+    function Ship(coord, heading) {
       this.hp = 50;
       this.speed = 300;
-      this.heading = 0.0;
+      this.heading = heading;
       this.coord = coord;
       this.targetCoord = coord;
       this.width = 20;
@@ -285,6 +285,7 @@
         dx = this.targetCoord.x - this.coord.x;
         dy = this.targetCoord.y - this.coord.y;
         theta = Math.atan2(dy, dx);
+        this.heading = utils.radToDeg(theta);
         $("#debug").text("Heading: " + this.heading);
         dist = this.speed * dt / 1000.0;
         dx2 = dist * Math.cos(theta);
@@ -307,7 +308,7 @@
             _results.push(new Ship({
               x: Math.round(Math.random() * constants.WIDTH),
               y: Math.round(Math.random() * constants.HEIGHT)
-            }));
+            }, Math.round(Math.random() * 360.0)));
           }
           return _results;
         })(),

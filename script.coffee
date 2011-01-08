@@ -121,7 +121,7 @@ class Renderer
     renderShip: (ship) ->
         @ctx.save()
         @ctx.translate(ship.coord.x, ship.coord.y)
-        @ctx.rotate(0.0174532925 * ship.heading)
+        @ctx.rotate(-1 * (Math.PI/2 - utils.degToRad(ship.heading)))
         this.drawRect(-ship.width/2, -ship.length/2, ship.width, ship.length, ship.color)
         if ship.selected
             @ctx.lineWidth = 2
@@ -206,10 +206,10 @@ class Player
             @rocketLauncher.tryFire({x: @coord.x, y: @coord.y}, @heading, model.bullets)
         
 class Ship
-    constructor: (coord) ->
+    constructor: (coord, heading) ->
         @hp = 50
         @speed = 300
-        @heading = 0.0
+        @heading = heading #angle with the positive x-axis
         @coord = coord
         @targetCoord = coord
         @width = 20
@@ -231,7 +231,7 @@ class Ship
             dy = @targetCoord.y - @coord.y
             theta = Math.atan2(dy, dx)
             
-            #@heading = utils.radToDeg(theta)
+            @heading = utils.radToDeg(theta)
             
             $("#debug").text("Heading: #{@heading}")
             
@@ -246,9 +246,11 @@ class Ship
 
 class GameModel
     constructor: ->
-        @model = 
+        @model =
             player: new Player
-            ships: (new Ship({x: Math.round(Math.random() * constants.WIDTH), y: Math.round(Math.random() * constants.HEIGHT)}) for i in [1..10])
+            ships: 
+                for i in [1..10]
+                    new Ship({x: Math.round(Math.random() * constants.WIDTH), y: Math.round(Math.random() * constants.HEIGHT)}, Math.round(Math.random() * 360.0))
             selected: []
             bullets: []
 
