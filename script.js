@@ -1,5 +1,5 @@
 (function() {
-  var Controller, GameModel, Player, Renderer, Rocket, RocketLauncher, Ship, colors, constants, controller, input, keys, mouseButtons, orders, state, utils;
+  var Controller, GameModel, Planet, Player, Renderer, Rocket, RocketLauncher, Ship, colors, constants, controller, input, keys, mouseButtons, orders, state, utils;
   var __indexOf = Array.prototype.indexOf || function(item) {
     for (var i = 0, l = this.length; i < l; i++) {
       if (this[i] === item) return i;
@@ -13,8 +13,9 @@
     GAME_HEIGHT: 10000,
     MILLIS_PER_TICK: 10,
     KEY_SCROLL_RATE: 600,
-    VIEWPORT_MARGIN: 100,
-    NUM_SHIPS: 1000
+    VIEWPORT_MARGIN: 200,
+    NUM_SHIPS: 1000,
+    NUM_PLANETS: 100
   };
   keys = {
     LEFT: 37,
@@ -28,7 +29,10 @@
     RED: "rgba(255,0,0,1.0)",
     BLUE: "rgba(0,0,255,1.0)",
     GREEN: "rgba(0,255,0,1.0)",
-    BACKGROUND: "rgba(0,0,0,1.0)"
+    BACKGROUND: "rgba(0,0,0,1.0)",
+    randomColor: function() {
+      return "rgba(" + (Math.round(Math.random() * 255)) + "," + (Math.round(Math.random() * 255)) + "," + (Math.round(Math.random() * 255)) + ",1.0)";
+    }
   };
   state = {
     ACTIVE: 0,
@@ -162,6 +166,16 @@
       this.ctx.fillStyle = color;
       return this.ctx.fillRect(x, y, width, height);
     };
+    Renderer.prototype.drawCircle = function(x, y, radius, color) {
+      $("#debug2").text("Drawing circle with color " + color);
+      this.ctx.strokeStyle = color;
+      this.ctx.fillStyle = color;
+      this.ctx.beginPath();
+      this.ctx.arc(x, y, radius, 0, Math.PI * 2, true);
+      this.ctx.closePath();
+      this.ctx.stroke();
+      return this.ctx.fill();
+    };
     Renderer.prototype.clear = function() {
       return this.drawRect(0, 0, constants.CANVAS_WIDTH, constants.CANVAS_HEIGHT, colors.BACKGROUND);
     };
@@ -170,7 +184,6 @@
       this.ctx.translate(ship.coord.x - viewport.x, ship.coord.y - viewport.y);
       this.ctx.rotate(utils.degToRad(ship.heading) - Math.PI / 2);
       this.drawRect(-ship.width / 2, -ship.length / 2, ship.width, ship.length, ship.color);
-      this.drawRect(0, 0, 1, 1, colors.RED);
       if (ship.selected) {
         this.ctx.lineWidth = 2;
         this.ctx.strokeStyle = colors.GREEN;
@@ -178,23 +191,37 @@
       }
       return this.ctx.restore();
     };
+    Renderer.prototype.renderPlanet = function(planet, viewport) {
+      this.ctx.save();
+      this.ctx.translate(planet.coord.x - viewport.x, planet.coord.y - viewport.y);
+      this.ctx.rotate(utils.degToRad(planet.heading) - Math.PI / 2);
+      this.drawCircle(0, 0, planet.radius, planet.color);
+      return this.ctx.restore();
+    };
     Renderer.prototype.nearViewport = function(coord, viewport) {
       return coord.x > (viewport.x - constants.VIEWPORT_MARGIN) && coord.x < (viewport.x + constants.CANVAS_WIDTH + constants.VIEWPORT_MARGIN) && coord.y > (viewport.y - constants.VIEWPORT_MARGIN) && coord.y < (viewport.y + constants.CANVAS_HEIGHT + constants.VIEWPORT_MARGIN);
     };
     Renderer.prototype.render = function(model, viewport) {
-      var bullet, leftPress, ship, _i, _j, _len, _len2, _ref, _ref2;
+      var bullet, leftPress, planet, ship, _i, _j, _k, _len, _len2, _len3, _ref, _ref2, _ref3;
       $("#screenCoord").text("Screen X: " + viewport.x + " Screen Y: " + viewport.y);
       this.clear();
-      _ref = model.ships;
+      _ref = model.planets;
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-        ship = _ref[_i];
+        planet = _ref[_i];
+        if (this.nearViewport(planet.coord, viewport)) {
+          this.renderPlanet(planet, viewport);
+        }
+      }
+      _ref2 = model.ships;
+      for (_j = 0, _len2 = _ref2.length; _j < _len2; _j++) {
+        ship = _ref2[_j];
         if (this.nearViewport(ship.coord, viewport)) {
           this.renderShip(ship, viewport);
         }
       }
-      _ref2 = model.bullets;
-      for (_j = 0, _len2 = _ref2.length; _j < _len2; _j++) {
-        bullet = _ref2[_j];
+      _ref3 = model.bullets;
+      for (_k = 0, _len3 = _ref3.length; _k < _len3; _k++) {
+        bullet = _ref3[_k];
         if (this.nearViewport(ship.coord, viewport)) {
           this.renderShip(bullet, viewport);
         }
@@ -330,6 +357,15 @@
     };
     return Ship;
   })();
+  Planet = (function() {
+    function Planet(coord, radius) {
+      this.coord = coord;
+      this.heading = 0.0;
+      this.radius = radius;
+      this.color = colors.randomColor();
+    }
+    return Planet;
+  })();
   GameModel = (function() {
     function GameModel() {
       var i;
@@ -346,6 +382,17 @@
               x: Math.round(Math.random() * constants.GAME_WIDTH),
               y: Math.round(Math.random() * constants.GAME_HEIGHT)
             }, Math.round(Math.random() * 360.0)));
+          }
+          return _results;
+        })(),
+        planets: (function() {
+          var _ref, _results;
+          _results = [];
+          for (i = 1, _ref = constants.NUM_PLANETS; (1 <= _ref ? i <= _ref : i >= _ref); (1 <= _ref ? i += 1 : i -= 1)) {
+            _results.push(new Planet({
+              x: Math.round(Math.random() * constants.GAME_WIDTH),
+              y: Math.round(Math.random() * constants.GAME_HEIGHT)
+            }, 20 + Math.round(Math.random() * 100)));
           }
           return _results;
         })(),

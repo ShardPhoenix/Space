@@ -6,8 +6,9 @@ constants =
     GAME_HEIGHT: 10000   
     MILLIS_PER_TICK: 10
     KEY_SCROLL_RATE: 600 #pix per second
-    VIEWPORT_MARGIN: 100 #rendering margin in pixelss
+    VIEWPORT_MARGIN: 200 #rendering margin in pixelss
     NUM_SHIPS: 1000
+    NUM_PLANETS: 100
     
 keys =
     LEFT: 37
@@ -22,6 +23,8 @@ colors =
     BLUE: "rgba(0,0,255,1.0)"
     GREEN: "rgba(0,255,0,1.0)"
     BACKGROUND: "rgba(0,0,0,1.0)"
+    randomColor: ->
+        "rgba(#{Math.round(Math.random() * 255)},#{Math.round(Math.random() * 255)},#{Math.round(Math.random() * 255)},1.0)"
     
 state = 
     ACTIVE: 0
@@ -126,6 +129,16 @@ class Renderer
         @ctx.fillStyle = color
         @ctx.fillRect(x, y, width, height)
         
+    drawCircle: (x, y, radius, color) ->
+        $("#debug2").text("Drawing circle with color #{color}")
+        @ctx.strokeStyle = color
+        @ctx.fillStyle = color
+        @ctx.beginPath()
+        @ctx.arc(x, y, radius, 0, Math.PI*2, true)
+        @ctx.closePath()
+        @ctx.stroke()
+        @ctx.fill()
+        
     clear: ->
         this.drawRect(0, 0, constants.CANVAS_WIDTH, constants.CANVAS_HEIGHT, colors.BACKGROUND)
         
@@ -134,11 +147,19 @@ class Renderer
         @ctx.translate(ship.coord.x - viewport.x, ship.coord.y - viewport.y)
         @ctx.rotate(utils.degToRad(ship.heading) - Math.PI/2)
         this.drawRect(-ship.width/2, -ship.length/2, ship.width, ship.length, ship.color)
-        this.drawRect(0, 0, 1, 1, colors.RED) #color ship's actual coord
+        #this.drawRect(0, 0, 1, 1, colors.RED) #color ship's actual coord
         if ship.selected
             @ctx.lineWidth = 2
             @ctx.strokeStyle = colors.GREEN
             @ctx.strokeRect(-ship.width/2, -ship.length/2, ship.width, ship.length)
+        @ctx.restore()
+        
+    renderPlanet: (planet, viewport) ->
+        @ctx.save()      
+        @ctx.translate(planet.coord.x - viewport.x, planet.coord.y - viewport.y)
+        @ctx.rotate(utils.degToRad(planet.heading) - Math.PI/2)
+        this.drawCircle(0, 0, planet.radius, planet.color)
+        #this.drawRect(0, 0, 1, 1, colors.RED) #color planet's actual coord
         @ctx.restore()
     
     nearViewport: (coord, viewport) ->
@@ -149,7 +170,8 @@ class Renderer
     render: (model, viewport) ->
         $("#screenCoord").text("Screen X: #{viewport.x} Screen Y: #{viewport.y}")
     
-        this.clear()      
+        this.clear()
+        this.renderPlanet(planet, viewport) for planet in model.planets when this.nearViewport(planet.coord, viewport)
         this.renderShip(ship, viewport) for ship in model.ships when this.nearViewport(ship.coord, viewport)
         this.renderShip(bullet, viewport) for bullet in model.bullets when this.nearViewport(ship.coord, viewport)
         
@@ -268,6 +290,13 @@ class Ship
             @coord.y += if utils.abs(dy) > utils.abs(dy2) then dy2 else dy      
         
 
+class Planet
+    constructor: (coord, radius) ->
+        @coord = coord
+        @heading = 0.0
+        @radius = radius
+        @color = colors.randomColor()
+
 class GameModel
     constructor: ->
         @viewport = {x: 100, y: 0}
@@ -276,6 +305,9 @@ class GameModel
             ships: 
                 for i in [1..constants.NUM_SHIPS]
                     new Ship({x: Math.round(Math.random() * constants.GAME_WIDTH), y: Math.round(Math.random() * constants.GAME_HEIGHT)}, Math.round(Math.random() * 360.0))
+            planets:
+                for i in [1..constants.NUM_PLANETS]
+                    new Planet({x: Math.round(Math.random() * constants.GAME_WIDTH), y: Math.round(Math.random() * constants.GAME_HEIGHT)}, 20 + Math.round(Math.random() * 100))
             selected: []
             bullets: []
             
