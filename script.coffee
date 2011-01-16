@@ -1,8 +1,11 @@
 
 constants =
-    WIDTH: 1024
-    HEIGHT: 768
-    MILLIS_PER_TICK: 30
+    CANVAS_WIDTH: 1024
+    CANVAS_HEIGHT: 768
+    GAME_WIDTH: 10000
+    GAME_HEIGHT: 10000   
+    MILLIS_PER_TICK: 10
+    KEY_SCROLL_RATE: 300 #pix per second
     
 keys =
     LEFT: 37
@@ -68,7 +71,7 @@ document.onkeyup = (event) ->
 #disable the right-click context menu
 document.captureEvents(Event.ONCONTEXTMENU)
 document.oncontextmenu = (event) ->
-    return false    
+    return false        
     
 #figure out where canvas is relative to the window
 $("#canvas").mousedown((event) ->
@@ -122,11 +125,11 @@ class Renderer
         @ctx.fillRect(x, y, width, height)
         
     clear: ->
-        this.drawRect(0, 0, constants.WIDTH, constants.HEIGHT, colors.BACKGROUND)
+        this.drawRect(0, 0, constants.CANVAS_WIDTH, constants.CANVAS_HEIGHT, colors.BACKGROUND)
         
-    renderShip: (ship) ->
+    renderShip: (ship, viewport) ->
         @ctx.save()      
-        @ctx.translate(ship.coord.x, ship.coord.y)
+        @ctx.translate(ship.coord.x - viewport.x, ship.coord.y - viewport.y)
         @ctx.rotate(utils.degToRad(ship.heading) - Math.PI/2)
         this.drawRect(-ship.width/2, -ship.length/2, ship.width, ship.length, ship.color)
         this.drawRect(0, 0, 1, 1, colors.RED) #color ship's actual coord
@@ -136,11 +139,10 @@ class Renderer
             @ctx.strokeRect(-ship.width/2, -ship.length/2, ship.width, ship.length)
         @ctx.restore()
     
-    render: (model) ->
+    render: (model, viewport) ->
         this.clear()      
-        this.renderShip(ship) for ship in model.ships
-        this.renderShip(bullet) for bullet in model.bullets
-        this.renderShip(model.player)
+        this.renderShip(ship, viewport) for ship in model.ships
+        this.renderShip(bullet, viewport) for bullet in model.bullets
         
         leftPress = input.mouseHeld[mouseButtons.LEFT]
         if (leftPress)
@@ -259,39 +261,50 @@ class Ship
 
 class GameModel
     constructor: ->
-        @model =
-            player: new Player
+        @viewport = {x: 100, y: 0}
+    
+        @model =           
             ships: 
                 for i in [1..10]
-                    new Ship({x: Math.round(Math.random() * constants.WIDTH), y: Math.round(Math.random() * constants.HEIGHT)}, Math.round(Math.random() * 360.0))
+                    new Ship({x: Math.round(Math.random() * constants.CANVAS_WIDTH), y: Math.round(Math.random() * constants.CANVAS_HEIGHT)}, Math.round(Math.random() * 360.0))
             selected: []
             bullets: []
-
+            
+    gameCoord: (screenCoord) ->
+        {x: screenCoord.x + @viewport.x, y: screenCoord.y + @viewport.y}
+            
     update: (dt) ->
+        #keyboard scroll
+        if input.keysHeld[keys.LEFT]
+            @viewport.x -= Math.round(constants.KEY_SCROLL_RATE * dt/1000.0)
+            if @viewport.x < 0 then @viewport.x = 0
+        if input.keysHeld[keys.RIGHT]
+            @viewport.x += Math.round(constants.KEY_SCROLL_RATE * dt/1000.0)
+            if @viewport.x > (constants.GAME_WIDTH - constants.SCREEN_WIDTH)  then @viewport.x = (constants.GAME_WIDTH - constants.SCREEN_WIDTH)
+            
+        if input.keysHeld[keys.UP]
+            @viewport.y -= Math.round(constants.KEY_SCROLL_RATE * dt/1000.0)
+            if @viewport.y < 0 then @viewport.y = 0
+        if input.keysHeld[keys.DOWN]
+            @viewport.y += Math.round(constants.KEY_SCROLL_RATE * dt/1000.0)
+            if @viewport.y > (constants.GAME_HEIGHT - constants.SCREEN_HEIGHT)  then @viewport.x = (constants.GAME_HEIGHT - constants.SCREEN_HEIGHT)
+    
+    
         rightClick = input.mouseClicked[mouseButtons.RIGHT]
         if rightClick? and !rightClick.handled
+            realCoord = this.gameCoord(rightClick.coord)
             for ship in @model.ships
                 if ship.selected                 
-                    ship.order = {targetCoord: rightClick.coord, orderType: orders.MOVE}
+                    ship.order = {targetCoord: realCoord, orderType: orders.MOVE}
             rightClick.handled = true
             
         leftClick = input.mouseClicked[mouseButtons.LEFT]
         if leftClick? and !leftClick.handled
+            realCoord = this.gameCoord(leftClick.coord)
             toBeSelected = null
-            for ship in @model.ships        
-                ###
-                angle = utils.degToRad(ship.heading)
-                #rotation matrix
-                dx = leftClick.coord.x - ship.coord.x
-                dy = leftClick.coord.y - ship.coord.y
-                rotX = dx * Math.cos(angle) - dy * Math.sin(angle)
-                rotY = dx * Math.sin(angle) - dy * Math.cos(angle)
-                
-                ship.selected = utils.abs(rotX) < ship.width/2 and utils.abs(rotY) < ship.length/2
-                ###
-                                 
+            for ship in @model.ships                                        
                 measure = if ship.length > ship.width then ship.length else ship.width
-                if utils.abs(leftClick.coord.x - ship.coord.x) < measure/2 and utils.abs(leftClick.coord.y - ship.coord.y) < measure/2
+                if utils.abs(realCoord.x - ship.coord.x) < measure/2 and utils.abs(realCoord.y - ship.coord.y) < measure/2
                     toBeSelected = ship
             
             if toBeSelected?
@@ -303,14 +316,13 @@ class GameModel
         if !input.selectBox.handled
             toBeSelected = []
             for ship in @model.ships 
-                if input.isInBox(ship.coord)
+                if input.isInBox({x: ship.coord.x - @viewport.x, y: ship.coord.y - @viewport.y})
                     toBeSelected.push(ship)
             if toBeSelected.length > 0
                 for ship in @model.ships
                     ship.selected = ship in toBeSelected
             input.selectBox.handled = true                 
     
-        @model.player.update(dt, @model)
         ship.update(dt) for ship in @model.ships
         bullet.update(dt) for bullet in @model.bullets
                       
@@ -333,7 +345,7 @@ class Controller
         @lastTime = time
         
         @gameModel.update(dt)
-        @renderer.render(@gameModel.model)
+        @renderer.render(@gameModel.model, @gameModel.viewport)
         
         @fpsIndicator.text(Math.round(1000 * @frames/(utils.currentTimeMillis() - @startTime)) + " fps")
         if (utils.currentTimeMillis() - @startTime) > 5000
