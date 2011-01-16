@@ -5,7 +5,9 @@ constants =
     GAME_WIDTH: 10000
     GAME_HEIGHT: 10000   
     MILLIS_PER_TICK: 10
-    KEY_SCROLL_RATE: 300 #pix per second
+    KEY_SCROLL_RATE: 600 #pix per second
+    VIEWPORT_MARGIN: 100 #rendering margin in pixelss
+    NUM_SHIPS: 1000
     
 keys =
     LEFT: 37
@@ -139,10 +141,17 @@ class Renderer
             @ctx.strokeRect(-ship.width/2, -ship.length/2, ship.width, ship.length)
         @ctx.restore()
     
+    nearViewport: (coord, viewport) ->
+        coord.x > (viewport.x - constants.VIEWPORT_MARGIN) and coord.x < (viewport.x + constants.CANVAS_WIDTH + constants.VIEWPORT_MARGIN) and
+            coord.y > (viewport.y - constants.VIEWPORT_MARGIN) and coord.y < (viewport.y + constants.CANVAS_HEIGHT + constants.VIEWPORT_MARGIN)
+        
+    
     render: (model, viewport) ->
+        $("#screenCoord").text("Screen X: #{viewport.x} Screen Y: #{viewport.y}")
+    
         this.clear()      
-        this.renderShip(ship, viewport) for ship in model.ships
-        this.renderShip(bullet, viewport) for bullet in model.bullets
+        this.renderShip(ship, viewport) for ship in model.ships when this.nearViewport(ship.coord, viewport)
+        this.renderShip(bullet, viewport) for bullet in model.bullets when this.nearViewport(ship.coord, viewport)
         
         leftPress = input.mouseHeld[mouseButtons.LEFT]
         if (leftPress)
@@ -265,8 +274,8 @@ class GameModel
     
         @model =           
             ships: 
-                for i in [1..10]
-                    new Ship({x: Math.round(Math.random() * constants.CANVAS_WIDTH), y: Math.round(Math.random() * constants.CANVAS_HEIGHT)}, Math.round(Math.random() * 360.0))
+                for i in [1..constants.NUM_SHIPS]
+                    new Ship({x: Math.round(Math.random() * constants.GAME_WIDTH), y: Math.round(Math.random() * constants.GAME_HEIGHT)}, Math.round(Math.random() * 360.0))
             selected: []
             bullets: []
             
@@ -280,14 +289,14 @@ class GameModel
             if @viewport.x < 0 then @viewport.x = 0
         if input.keysHeld[keys.RIGHT]
             @viewport.x += Math.round(constants.KEY_SCROLL_RATE * dt/1000.0)
-            if @viewport.x > (constants.GAME_WIDTH - constants.SCREEN_WIDTH)  then @viewport.x = (constants.GAME_WIDTH - constants.SCREEN_WIDTH)
+            if @viewport.x > (constants.GAME_WIDTH - constants.CANVAS_WIDTH)  then @viewport.x = (constants.GAME_WIDTH - constants.CANVAS_WIDTH)
             
         if input.keysHeld[keys.UP]
             @viewport.y -= Math.round(constants.KEY_SCROLL_RATE * dt/1000.0)
             if @viewport.y < 0 then @viewport.y = 0
         if input.keysHeld[keys.DOWN]
             @viewport.y += Math.round(constants.KEY_SCROLL_RATE * dt/1000.0)
-            if @viewport.y > (constants.GAME_HEIGHT - constants.SCREEN_HEIGHT)  then @viewport.x = (constants.GAME_HEIGHT - constants.SCREEN_HEIGHT)
+            if @viewport.y > (constants.GAME_HEIGHT - constants.CANVAS_HEIGHT)  then @viewport.y = (constants.GAME_HEIGHT - constants.CANVAS_HEIGHT)
     
     
         rightClick = input.mouseClicked[mouseButtons.RIGHT]

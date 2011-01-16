@@ -12,7 +12,9 @@
     GAME_WIDTH: 10000,
     GAME_HEIGHT: 10000,
     MILLIS_PER_TICK: 10,
-    KEY_SCROLL_RATE: 300
+    KEY_SCROLL_RATE: 600,
+    VIEWPORT_MARGIN: 100,
+    NUM_SHIPS: 1000
   };
   keys = {
     LEFT: 37,
@@ -176,18 +178,26 @@
       }
       return this.ctx.restore();
     };
+    Renderer.prototype.nearViewport = function(coord, viewport) {
+      return coord.x > (viewport.x - constants.VIEWPORT_MARGIN) && coord.x < (viewport.x + constants.CANVAS_WIDTH + constants.VIEWPORT_MARGIN) && coord.y > (viewport.y - constants.VIEWPORT_MARGIN) && coord.y < (viewport.y + constants.CANVAS_HEIGHT + constants.VIEWPORT_MARGIN);
+    };
     Renderer.prototype.render = function(model, viewport) {
       var bullet, leftPress, ship, _i, _j, _len, _len2, _ref, _ref2;
+      $("#screenCoord").text("Screen X: " + viewport.x + " Screen Y: " + viewport.y);
       this.clear();
       _ref = model.ships;
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
         ship = _ref[_i];
-        this.renderShip(ship, viewport);
+        if (this.nearViewport(ship.coord, viewport)) {
+          this.renderShip(ship, viewport);
+        }
       }
       _ref2 = model.bullets;
       for (_j = 0, _len2 = _ref2.length; _j < _len2; _j++) {
         bullet = _ref2[_j];
-        this.renderShip(bullet, viewport);
+        if (this.nearViewport(ship.coord, viewport)) {
+          this.renderShip(bullet, viewport);
+        }
       }
       leftPress = input.mouseHeld[mouseButtons.LEFT];
       if (leftPress) {
@@ -329,12 +339,12 @@
       };
       this.model = {
         ships: (function() {
-          var _results;
+          var _ref, _results;
           _results = [];
-          for (i = 1; i <= 10; i++) {
+          for (i = 1, _ref = constants.NUM_SHIPS; (1 <= _ref ? i <= _ref : i >= _ref); (1 <= _ref ? i += 1 : i -= 1)) {
             _results.push(new Ship({
-              x: Math.round(Math.random() * constants.CANVAS_WIDTH),
-              y: Math.round(Math.random() * constants.CANVAS_HEIGHT)
+              x: Math.round(Math.random() * constants.GAME_WIDTH),
+              y: Math.round(Math.random() * constants.GAME_HEIGHT)
             }, Math.round(Math.random() * 360.0)));
           }
           return _results;
@@ -359,8 +369,8 @@
       }
       if (input.keysHeld[keys.RIGHT]) {
         this.viewport.x += Math.round(constants.KEY_SCROLL_RATE * dt / 1000.0);
-        if (this.viewport.x > (constants.GAME_WIDTH - constants.SCREEN_WIDTH)) {
-          this.viewport.x = constants.GAME_WIDTH - constants.SCREEN_WIDTH;
+        if (this.viewport.x > (constants.GAME_WIDTH - constants.CANVAS_WIDTH)) {
+          this.viewport.x = constants.GAME_WIDTH - constants.CANVAS_WIDTH;
         }
       }
       if (input.keysHeld[keys.UP]) {
@@ -371,8 +381,8 @@
       }
       if (input.keysHeld[keys.DOWN]) {
         this.viewport.y += Math.round(constants.KEY_SCROLL_RATE * dt / 1000.0);
-        if (this.viewport.y > (constants.GAME_HEIGHT - constants.SCREEN_HEIGHT)) {
-          this.viewport.x = constants.GAME_HEIGHT - constants.SCREEN_HEIGHT;
+        if (this.viewport.y > (constants.GAME_HEIGHT - constants.CANVAS_HEIGHT)) {
+          this.viewport.y = constants.GAME_HEIGHT - constants.CANVAS_HEIGHT;
         }
       }
       rightClick = input.mouseClicked[mouseButtons.RIGHT];
