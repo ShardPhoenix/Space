@@ -2,6 +2,8 @@
 constants =
     CANVAS_WIDTH: 1024
     CANVAS_HEIGHT: 768
+    MINIMAP_WIDTH: 384
+    MINIMAP_HEIGHT: 288
     GAME_WIDTH: 10000
     GAME_HEIGHT: 10000   
     MILLIS_PER_TICK: 10
@@ -76,6 +78,12 @@ input =
     selectBox: {handled: true}
     isInBox: (coord) ->
         coord.x > this.selectBox.topLeft.x and coord.x < this.selectBox.bottomRight.x and coord.y > this.selectBox.topLeft.y and coord.y < this.selectBox.bottomRight.y
+        
+minimapInput =
+    xOffset: 0
+    yOffset: 0
+    mouseHeld: {}
+    mouseClicked: {}
     
 document.onkeydown = (event) ->
     input.keysHeld[event.keyCode] = true
@@ -92,6 +100,18 @@ document.oncontextmenu = (event) ->
 $("#canvas").mousedown((event) ->
     input.xOffset = this.offsetLeft
     input.yOffset = this.offsetTop)
+
+$("#minimap").mousedown((event) ->
+    minimapInput.xOffset = this.offsetLeft
+    minimapInput.yOffset = this.offsetTop)
+    
+$("#minimap").click((event) ->
+    minimapInput.mouseClicked[event.button] = 
+        coord: 
+            x: event.clientX - minimapInput.xOffset
+            y: event.clientY - minimapInput.yOffset
+        handled: false
+    )
     
 $("html").mousemove((event) ->
     input.mousePos.x = event.clientX - input.xOffset
@@ -99,8 +119,8 @@ $("html").mousemove((event) ->
     $("#mousePos").text("X: #{input.mousePos.x}, Y: #{input.mousePos.y}"))
     
 $("html").mousedown((event) ->
-    #event.preventDefault()
-    #event.stopPropagation()
+    event.preventDefault()
+    event.stopPropagation()
     $("#debug").text("Mouse button #{event.button} down at: #{event.clientX} left #{event.clientY} down")
     input.mouseHeld[event.button] = {x: event.clientX - input.xOffset, y: event.clientY - input.yOffset})
     
@@ -134,6 +154,7 @@ $("html").mouseup((event) ->
 class Renderer
     constructor: ->
         @ctx = document.getElementById("canvas").getContext("2d");
+        @minimap = document.getElementById("minimap").getContext("2d");
 
     drawRect: (x, y, width, height, color) ->
         @ctx.fillStyle = color
@@ -175,6 +196,30 @@ class Renderer
     nearViewport: (coord, viewport) ->
         coord.x > (viewport.x - constants.VIEWPORT_MARGIN) and coord.x < (viewport.x + constants.CANVAS_WIDTH + constants.VIEWPORT_MARGIN) and
             coord.y > (viewport.y - constants.VIEWPORT_MARGIN) and coord.y < (viewport.y + constants.CANVAS_HEIGHT + constants.VIEWPORT_MARGIN)
+            
+    renderMinimap: (model, viewport) ->
+        @minimap.fillStyle = colors.BACKGROUND
+        @minimap.fillRect(0, 0, constants.MINIMAP_WIDTH, constants.MINIMAP_HEIGHT)
+        
+        for planet in model.planets
+            @minimap.fillStyle = planet.color
+            @minimap.fillRect(planet.coord.x * (constants.MINIMAP_WIDTH/constants.GAME_WIDTH), planet.coord.y * (constants.MINIMAP_HEIGHT/constants.GAME_HEIGHT), 2, 2)
+        
+        for ship in model.ships
+            @minimap.fillStyle = ship.color
+            @minimap.fillRect(ship.coord.x * (constants.MINIMAP_WIDTH/constants.GAME_WIDTH), ship.coord.y * (constants.MINIMAP_HEIGHT/constants.GAME_HEIGHT), 1, 1)
+            
+        #draw selected area box
+        fractionWidth = constants.CANVAS_WIDTH/constants.GAME_WIDTH
+        fractionHeight = constants.CANVAS_HEIGHT/constants.GAME_HEIGHT
+        boxWidth = fractionWidth * constants.MINIMAP_WIDTH
+        boxHeight = fractionHeight * constants.MINIMAP_HEIGHT
+        boxX = viewport.x * constants.MINIMAP_WIDTH/constants.GAME_WIDTH
+        boxY = viewport.y * constants.MINIMAP_HEIGHT/constants.GAME_HEIGHT
+        
+        @minimap.lineWidth = 1
+        @minimap.strokeStyle = colors.GREEN
+        @minimap.strokeRect(boxX, boxY, boxWidth, boxHeight)
         
     
     render: (model, viewport) ->
@@ -190,6 +235,8 @@ class Renderer
             @ctx.lineWidth = 1
             @ctx.strokeStyle = colors.GREEN
             @ctx.strokeRect(leftPress.x, leftPress.y, input.mousePos.x - leftPress.x, input.mousePos.y - leftPress.y)
+            
+        this.renderMinimap(model, viewport)
         
 class Rocket
     constructor: (coord, heading) ->
@@ -311,7 +358,7 @@ class Planet
 
 class GameModel
     constructor: ->
-        @viewport = {x: 100, y: 0}
+        @viewport = {x: 0, y: 0}
     
         @model =           
             ships: 
@@ -374,7 +421,15 @@ class GameModel
             if toBeSelected.length > 0
                 for ship in @model.ships
                     ship.selected = ship in toBeSelected
-            input.selectBox.handled = true                 
+            input.selectBox.handled = true    
+
+        mapClick = minimapInput.mouseClicked[mouseButtons.LEFT]
+        if mapClick and !mapClick.handled
+            @viewport.x = mapClick.coord.x * constants.GAME_WIDTH/constants.MINIMAP_WIDTH - constants.CANVAS_WIDTH/2
+            @viewport.y = mapClick.coord.y * constants.GAME_HEIGHT/constants.MINIMAP_HEIGHT - constants.CANVAS_HEIGHT/2
+            mapClick.handled = true
+            
+            
     
         ship.update(dt) for ship in @model.ships
         bullet.update(dt) for bullet in @model.bullets
