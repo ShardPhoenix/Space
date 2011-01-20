@@ -1,5 +1,5 @@
 (function() {
-  var Controller, GameModel, Planet, Player, Renderer, Rocket, RocketLauncher, Ship, colors, constants, controller, input, keys, mouseButtons, orders, state, utils;
+  var Controller, GameModel, Planet, Player, Renderer, Rocket, RocketLauncher, Ship, colors, constants, controller, input, keys, mouseButtons, orders, players, state, utils;
   var __indexOf = Array.prototype.indexOf || function(item) {
     for (var i = 0, l = this.length; i < l; i++) {
       if (this[i] === item) return i;
@@ -17,6 +17,10 @@
     NUM_SHIPS: 1000,
     NUM_PLANETS: 100
   };
+  players = {
+    COMPUTER: 0,
+    HUMAN: 1
+  };
   keys = {
     LEFT: 37,
     UP: 38,
@@ -32,6 +36,16 @@
     BACKGROUND: "rgba(0,0,0,1.0)",
     randomColor: function() {
       return "rgba(" + (Math.round(Math.random() * 255)) + "," + (Math.round(Math.random() * 255)) + "," + (Math.round(Math.random() * 255)) + ",1.0)";
+    },
+    forPlayer: function(player) {
+      switch (player) {
+        case players.COMPUTER:
+          return colors.BLUE;
+        case players.HUMAN:
+          return colors.RED;
+        default:
+          return colors.GREEN;
+      }
     }
   };
   state = {
@@ -167,7 +181,6 @@
       return this.ctx.fillRect(x, y, width, height);
     };
     Renderer.prototype.drawCircle = function(x, y, radius, color) {
-      $("#debug2").text("Drawing circle with color " + color);
       this.ctx.strokeStyle = color;
       this.ctx.fillStyle = color;
       this.ctx.beginPath();
@@ -183,6 +196,7 @@
       this.ctx.save();
       this.ctx.translate(ship.coord.x - viewport.x, ship.coord.y - viewport.y);
       this.ctx.rotate(utils.degToRad(ship.heading) - Math.PI / 2);
+      $("#debug3").text("color: " + ship.color + " " + ship.owner);
       this.drawRect(-ship.width / 2, -ship.length / 2, ship.width, ship.length, ship.color);
       if (ship.selected) {
         this.ctx.lineWidth = 2;
@@ -322,7 +336,7 @@
     return Player;
   })();
   Ship = (function() {
-    function Ship(coord, heading) {
+    function Ship(owner, coord, heading) {
       this.hp = 50;
       this.speed = 300;
       this.heading = heading;
@@ -330,11 +344,12 @@
       this.targetCoord = coord;
       this.width = 20;
       this.length = 40;
-      this.color = colors.BLUE;
+      this.color = colors.forPlayer(owner);
       this.state = state.ACTIVE;
       this.selected = false;
       this.order;
       this.orderType;
+      this.owner = owner;
     }
     Ship.prototype.update = function(dt) {
       var dist, dx, dx2, dy, dy2, theta;
@@ -378,7 +393,7 @@
           var _ref, _results;
           _results = [];
           for (i = 1, _ref = constants.NUM_SHIPS; (1 <= _ref ? i <= _ref : i >= _ref); (1 <= _ref ? i += 1 : i -= 1)) {
-            _results.push(new Ship({
+            _results.push(new Ship((Math.random() > 0.5 ? players.COMPUTER : players.HUMAN), {
               x: Math.round(Math.random() * constants.GAME_WIDTH),
               y: Math.round(Math.random() * constants.GAME_HEIGHT)
             }, Math.round(Math.random() * 360.0)));
@@ -454,9 +469,11 @@
         _ref2 = this.model.ships;
         for (_j = 0, _len2 = _ref2.length; _j < _len2; _j++) {
           ship = _ref2[_j];
-          measure = ship.length > ship.width ? ship.length : ship.width;
-          if (utils.abs(realCoord.x - ship.coord.x) < measure / 2 && utils.abs(realCoord.y - ship.coord.y) < measure / 2) {
-            toBeSelected = ship;
+          if (ship.owner === players.HUMAN) {
+            measure = ship.length > ship.width ? ship.length : ship.width;
+            if (utils.abs(realCoord.x - ship.coord.x) < measure / 2 && utils.abs(realCoord.y - ship.coord.y) < measure / 2) {
+              toBeSelected = ship;
+            }
           }
         }
         if (toBeSelected != null) {
@@ -474,11 +491,13 @@
         _ref4 = this.model.ships;
         for (_l = 0, _len4 = _ref4.length; _l < _len4; _l++) {
           ship = _ref4[_l];
-          if (input.isInBox({
-            x: ship.coord.x - this.viewport.x,
-            y: ship.coord.y - this.viewport.y
-          })) {
-            toBeSelected.push(ship);
+          if (ship.owner === players.HUMAN) {
+            if (input.isInBox({
+              x: ship.coord.x - this.viewport.x,
+              y: ship.coord.y - this.viewport.y
+            })) {
+              toBeSelected.push(ship);
+            }
           }
         }
         if (toBeSelected.length > 0) {

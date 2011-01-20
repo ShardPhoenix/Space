@@ -10,6 +10,10 @@ constants =
     NUM_SHIPS: 1000
     NUM_PLANETS: 100
     
+players =
+    COMPUTER: 0
+    HUMAN: 1
+    
 keys =
     LEFT: 37
     UP: 38
@@ -25,6 +29,12 @@ colors =
     BACKGROUND: "rgba(0,0,0,1.0)"
     randomColor: ->
         "rgba(#{Math.round(Math.random() * 255)},#{Math.round(Math.random() * 255)},#{Math.round(Math.random() * 255)},1.0)"
+        
+    forPlayer: (player) ->
+        switch player
+            when players.COMPUTER then colors.BLUE
+            when players.HUMAN then colors.RED
+            else colors.GREEN
     
 state = 
     ACTIVE: 0
@@ -130,7 +140,6 @@ class Renderer
         @ctx.fillRect(x, y, width, height)
         
     drawCircle: (x, y, radius, color) ->
-        $("#debug2").text("Drawing circle with color #{color}")
         @ctx.strokeStyle = color
         @ctx.fillStyle = color
         @ctx.beginPath()
@@ -146,6 +155,7 @@ class Renderer
         @ctx.save()      
         @ctx.translate(ship.coord.x - viewport.x, ship.coord.y - viewport.y)
         @ctx.rotate(utils.degToRad(ship.heading) - Math.PI/2)
+        $("#debug3").text("color: " + ship.color + " " + ship.owner)
         this.drawRect(-ship.width/2, -ship.length/2, ship.width, ship.length, ship.color)
         #this.drawRect(0, 0, 1, 1, colors.RED) #color ship's actual coord
         if ship.selected
@@ -252,7 +262,7 @@ class Player
             @rocketLauncher.tryFire({x: @coord.x, y: @coord.y}, @heading, model.bullets)
         
 class Ship
-    constructor: (coord, heading) ->
+    constructor: (owner, coord, heading) ->
         @hp = 50
         @speed = 300
         @heading = heading #angle with the positive x-axis
@@ -260,11 +270,13 @@ class Ship
         @targetCoord = coord
         @width = 20
         @length = 40
-        @color = colors.BLUE
+        @color = colors.forPlayer(owner)
         @state = state.ACTIVE
         @selected = false
         @order
         @orderType
+        
+        @owner = owner
         
     update : (dt) ->
         if @order
@@ -304,7 +316,7 @@ class GameModel
         @model =           
             ships: 
                 for i in [1..constants.NUM_SHIPS]
-                    new Ship({x: Math.round(Math.random() * constants.GAME_WIDTH), y: Math.round(Math.random() * constants.GAME_HEIGHT)}, Math.round(Math.random() * 360.0))
+                    new Ship((if Math.random() > 0.5 then players.COMPUTER else players.HUMAN), {x: Math.round(Math.random() * constants.GAME_WIDTH), y: Math.round(Math.random() * constants.GAME_HEIGHT)}, Math.round(Math.random() * 360.0))
             planets:
                 for i in [1..constants.NUM_PLANETS]
                     new Planet({x: Math.round(Math.random() * constants.GAME_WIDTH), y: Math.round(Math.random() * constants.GAME_HEIGHT)}, 20 + Math.round(Math.random() * 100))
@@ -343,7 +355,7 @@ class GameModel
         if leftClick? and !leftClick.handled
             realCoord = this.gameCoord(leftClick.coord)
             toBeSelected = null
-            for ship in @model.ships                                        
+            for ship in @model.ships when ship.owner == players.HUMAN                                      
                 measure = if ship.length > ship.width then ship.length else ship.width
                 if utils.abs(realCoord.x - ship.coord.x) < measure/2 and utils.abs(realCoord.y - ship.coord.y) < measure/2
                     toBeSelected = ship
@@ -356,7 +368,7 @@ class GameModel
     
         if !input.selectBox.handled
             toBeSelected = []
-            for ship in @model.ships 
+            for ship in @model.ships when ship.owner == players.HUMAN
                 if input.isInBox({x: ship.coord.x - @viewport.x, y: ship.coord.y - @viewport.y})
                     toBeSelected.push(ship)
             if toBeSelected.length > 0
