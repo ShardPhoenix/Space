@@ -149,6 +149,21 @@
       handled: false
     };
   });
+  $("#minimap").mousedown(function(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    return minimapInput.mouseHeld[event.button] = {
+      x: event.clientX - minimapInput.xOffset,
+      y: event.clientY - minimapInput.yOffset
+    };
+  });
+  $("#minimap").mousemove(function(event) {
+    minimapInput.mouseHeld[event.button].x = event.clientX - minimapInput.xOffset;
+    return minimapInput.mouseHeld[event.button].y = event.clientY - minimapInput.yOffset;
+  });
+  $("#minimap").mouseup(function(event) {
+    return minimapInput.mouseHeld[event.button] = false;
+  });
   $("html").mousemove(function(event) {
     input.mousePos.x = event.clientX - input.xOffset;
     input.mousePos.y = event.clientY - input.yOffset;
@@ -220,7 +235,6 @@
       this.ctx.save();
       this.ctx.translate(ship.coord.x - viewport.x, ship.coord.y - viewport.y);
       this.ctx.rotate(utils.degToRad(ship.heading) - Math.PI / 2);
-      $("#debug3").text("color: " + ship.color + " " + ship.owner);
       this.drawRect(-ship.width / 2, -ship.length / 2, ship.width, ship.length, ship.color);
       if (ship.selected) {
         this.ctx.lineWidth = 2;
@@ -240,7 +254,7 @@
       return coord.x > (viewport.x - constants.VIEWPORT_MARGIN) && coord.x < (viewport.x + constants.CANVAS_WIDTH + constants.VIEWPORT_MARGIN) && coord.y > (viewport.y - constants.VIEWPORT_MARGIN) && coord.y < (viewport.y + constants.CANVAS_HEIGHT + constants.VIEWPORT_MARGIN);
     };
     Renderer.prototype.renderMinimap = function(model, viewport) {
-      var boxHeight, boxWidth, boxX, boxY, fractionHeight, fractionWidth, planet, ship, _i, _j, _len, _len2, _ref, _ref2;
+      var boxHeight, boxWidth, boxX, boxY, fractionHeight, fractionWidth, leftDrag, planet, ship, _i, _j, _len, _len2, _ref, _ref2;
       this.minimap.fillStyle = colors.BACKGROUND;
       this.minimap.fillRect(0, 0, constants.MINIMAP_WIDTH, constants.MINIMAP_HEIGHT);
       _ref = model.planets;
@@ -261,6 +275,11 @@
       boxHeight = fractionHeight * constants.MINIMAP_HEIGHT;
       boxX = viewport.x * constants.MINIMAP_WIDTH / constants.GAME_WIDTH;
       boxY = viewport.y * constants.MINIMAP_HEIGHT / constants.GAME_HEIGHT;
+      leftDrag = minimapInput.mouseHeld[mouseButtons.LEFT];
+      if (leftDrag) {
+        boxX = leftDrag.x - (constants.CANVAS_WIDTH / constants.GAME_WIDTH * constants.MINIMAP_WIDTH) / 2;
+        boxY = leftDrag.y - (constants.CANVAS_HEIGHT / constants.GAME_HEIGHT * constants.MINIMAP_WIDTH) / 2;
+      }
       this.minimap.lineWidth = 1;
       this.minimap.strokeStyle = colors.GREEN;
       return this.minimap.strokeRect(boxX, boxY, boxWidth, boxHeight);
@@ -473,7 +492,7 @@
       };
     };
     GameModel.prototype.update = function(dt) {
-      var bullet, leftClick, mapClick, measure, realCoord, rightClick, ship, toBeSelected, _i, _j, _k, _l, _len, _len2, _len3, _len4, _len5, _len6, _len7, _m, _n, _o, _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7;
+      var bullet, leftClick, mapClick, mapDrag, measure, realCoord, rightClick, ship, toBeSelected, _i, _j, _k, _l, _len, _len2, _len3, _len4, _len5, _len6, _len7, _m, _n, _o, _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7;
       if (input.keysHeld[keys.LEFT]) {
         this.viewport.x -= Math.round(constants.KEY_SCROLL_RATE * dt / 1000.0);
         if (this.viewport.x < 0) {
@@ -560,10 +579,16 @@
         }
         input.selectBox.handled = true;
       }
+      mapDrag = minimapInput.mouseHeld[mouseButtons.LEFT];
+      if (mapDrag) {
+        this.viewport.x = Math.round(mapDrag.x * constants.GAME_WIDTH / constants.MINIMAP_WIDTH - constants.CANVAS_WIDTH / 2);
+        this.viewport.y = Math.round(mapDrag.y * constants.GAME_HEIGHT / constants.MINIMAP_HEIGHT - constants.CANVAS_HEIGHT / 2);
+        $("#debug3").text("dragging at " + this.viewport.x + ", " + this.viewport.y);
+      }
       mapClick = minimapInput.mouseClicked[mouseButtons.LEFT];
       if (mapClick && !mapClick.handled) {
-        this.viewport.x = mapClick.coord.x * constants.GAME_WIDTH / constants.MINIMAP_WIDTH - constants.CANVAS_WIDTH / 2;
-        this.viewport.y = mapClick.coord.y * constants.GAME_HEIGHT / constants.MINIMAP_HEIGHT - constants.CANVAS_HEIGHT / 2;
+        this.viewport.x = Math.round(mapClick.coord.x * constants.GAME_WIDTH / constants.MINIMAP_WIDTH - constants.CANVAS_WIDTH / 2);
+        this.viewport.y = Math.round(mapClick.coord.y * constants.GAME_HEIGHT / constants.MINIMAP_HEIGHT - constants.CANVAS_HEIGHT / 2);
         mapClick.handled = true;
       }
       _ref6 = this.model.ships;

@@ -113,6 +113,21 @@ $("#minimap").click((event) ->
         handled: false
     )
     
+$("#minimap").mousedown((event) ->
+    event.preventDefault()
+    event.stopPropagation()
+    minimapInput.mouseHeld[event.button] = {x: event.clientX - minimapInput.xOffset, y: event.clientY - minimapInput.yOffset})
+    
+#we only care about the current mouse position for the minimap, so adjust as we drag
+$("#minimap").mousemove((event) ->
+    minimapInput.mouseHeld[event.button].x = event.clientX - minimapInput.xOffset
+    minimapInput.mouseHeld[event.button].y = event.clientY - minimapInput.yOffset
+)
+    
+$("#minimap").mouseup((event) ->
+    minimapInput.mouseHeld[event.button] = false
+)
+    
 $("html").mousemove((event) ->
     input.mousePos.x = event.clientX - input.xOffset
     input.mousePos.y = event.clientY - input.yOffset
@@ -176,7 +191,6 @@ class Renderer
         @ctx.save()      
         @ctx.translate(ship.coord.x - viewport.x, ship.coord.y - viewport.y)
         @ctx.rotate(utils.degToRad(ship.heading) - Math.PI/2)
-        $("#debug3").text("color: " + ship.color + " " + ship.owner)
         this.drawRect(-ship.width/2, -ship.length/2, ship.width, ship.length, ship.color)
         #this.drawRect(0, 0, 1, 1, colors.RED) #color ship's actual coord
         if ship.selected
@@ -209,13 +223,19 @@ class Renderer
             @minimap.fillStyle = ship.color
             @minimap.fillRect(ship.coord.x * (constants.MINIMAP_WIDTH/constants.GAME_WIDTH), ship.coord.y * (constants.MINIMAP_HEIGHT/constants.GAME_HEIGHT), 1, 1)
             
-        #draw selected area box
+        #draw selected area box      
         fractionWidth = constants.CANVAS_WIDTH/constants.GAME_WIDTH
         fractionHeight = constants.CANVAS_HEIGHT/constants.GAME_HEIGHT
         boxWidth = fractionWidth * constants.MINIMAP_WIDTH
         boxHeight = fractionHeight * constants.MINIMAP_HEIGHT
         boxX = viewport.x * constants.MINIMAP_WIDTH/constants.GAME_WIDTH
         boxY = viewport.y * constants.MINIMAP_HEIGHT/constants.GAME_HEIGHT
+        
+        #if we are dragging, draw box there instead
+        leftDrag = minimapInput.mouseHeld[mouseButtons.LEFT]
+        if leftDrag 
+            boxX = leftDrag.x - (constants.CANVAS_WIDTH/constants.GAME_WIDTH * constants.MINIMAP_WIDTH)/2
+            boxY = leftDrag.y - (constants.CANVAS_HEIGHT/constants.GAME_HEIGHT * constants.MINIMAP_WIDTH)/2
         
         @minimap.lineWidth = 1
         @minimap.strokeStyle = colors.GREEN
@@ -422,11 +442,17 @@ class GameModel
                 for ship in @model.ships
                     ship.selected = ship in toBeSelected
             input.selectBox.handled = true    
+            
+        mapDrag = minimapInput.mouseHeld[mouseButtons.LEFT]
+        if mapDrag
+            @viewport.x = Math.round(mapDrag.x * constants.GAME_WIDTH/constants.MINIMAP_WIDTH - constants.CANVAS_WIDTH/2)
+            @viewport.y = Math.round(mapDrag.y * constants.GAME_HEIGHT/constants.MINIMAP_HEIGHT - constants.CANVAS_HEIGHT/2)
+            $("#debug3").text("dragging at #{@viewport.x}, #{@viewport.y}")
 
         mapClick = minimapInput.mouseClicked[mouseButtons.LEFT]
         if mapClick and !mapClick.handled
-            @viewport.x = mapClick.coord.x * constants.GAME_WIDTH/constants.MINIMAP_WIDTH - constants.CANVAS_WIDTH/2
-            @viewport.y = mapClick.coord.y * constants.GAME_HEIGHT/constants.MINIMAP_HEIGHT - constants.CANVAS_HEIGHT/2
+            @viewport.x = Math.round(mapClick.coord.x * constants.GAME_WIDTH/constants.MINIMAP_WIDTH - constants.CANVAS_WIDTH/2)
+            @viewport.y = Math.round(mapClick.coord.y * constants.GAME_HEIGHT/constants.MINIMAP_HEIGHT - constants.CANVAS_HEIGHT/2)
             mapClick.handled = true
             
             
