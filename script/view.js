@@ -94,7 +94,7 @@ Renderer = (function() {
     _ref3 = model.bullets;
     for (_k = 0, _len3 = _ref3.length; _k < _len3; _k++) {
       bullet = _ref3[_k];
-      if (this.nearViewport(ship.coord, viewport)) {
+      if (this.nearViewport(bullet.coord, viewport)) {
         this.renderShip(bullet, viewport);
       }
     }

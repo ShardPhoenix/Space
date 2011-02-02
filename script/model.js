@@ -1,4 +1,4 @@
-var GameModel, Planet, Player, Rocket, RocketLauncher, Ship;
+var GameModel, HomingMissile, Planet, Player, Rocket, RocketLauncher, Ship;
 var __indexOf = Array.prototype.indexOf || function(item) {
   for (var i = 0, l = this.length; i < l; i++) {
     if (this[i] === item) return i;
@@ -52,6 +52,50 @@ RocketLauncher = (function() {
   };
   return RocketLauncher;
 })();
+HomingMissile = (function() {
+  function HomingMissile(coord, heading, target) {
+    this.target = target;
+    this.damage = 100;
+    this.distTravelled = 0;
+    this.maxDist = 1000.0;
+    this.damage = 100;
+    this.radius = 100;
+    this.speed = 600.0;
+    this.coord = coord;
+    this.heading = heading;
+    this.color = colors.WHITE;
+    this.width = 5;
+    this.length = 5;
+  }
+  HomingMissile.prototype.update = function(dt) {
+    var damage, dist, dx, dx2, dy, dy2, theta;
+    if (this.distTravelled < this.maxDist && this.target) {
+      dx = this.target.coord.x - this.coord.x;
+      dy = this.target.coord.y - this.coord.y;
+      theta = Math.atan2(dy, dx);
+      this.heading = utils.radToDeg(theta);
+      dist = this.speed * dt / 1000.0;
+      dx2 = dist * Math.cos(theta);
+      dy2 = dist * Math.sin(theta);
+      this.coord.x += utils.abs(dx) > utils.abs(dx2) ? dx2 : dx;
+      this.coord.y += utils.abs(dy) > utils.abs(dy2) ? dy2 : dy;
+      if (this.coord.x === this.target.coord.x && this.coord.y === this.target.coord.y) {
+        damage = this.damage;
+        this.target.effects.push({
+          done: false,
+          apply: function(target) {
+            target.hp -= damage;
+            return this.done = true;
+          }
+        });
+        return this.state = state.DEAD;
+      }
+    } else {
+      return this.state = state.DEAD;
+    }
+  };
+  return HomingMissile;
+})();
 Player = (function() {
   function Player() {
     this.hp = 100;
@@ -92,7 +136,8 @@ Player = (function() {
   return Player;
 })();
 Ship = (function() {
-  function Ship(owner, coord, heading) {
+  function Ship(world, owner, coord, heading) {
+    this.world = world;
     this.hp = 50;
     this.speed = 300;
     this.heading = heading;
@@ -103,12 +148,35 @@ Ship = (function() {
     this.color = colors.forPlayer(owner);
     this.state = state.ACTIVE;
     this.selected = false;
+    this.effects = [];
     this.order;
     this.orderType;
     this.owner = owner;
   }
   Ship.prototype.update = function(dt) {
-    var dist, dx, dx2, dy, dy2, theta;
+    var dist, dx, dx2, dy, dy2, effect, theta, _i, _len, _ref;
+    if (this.effects.length > 0) {
+      _ref = this.effects;
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        effect = _ref[_i];
+        effect.apply(this, dt);
+      }
+    }
+    this.effects = (function() {
+      var _i, _len, _ref, _results;
+      _ref = this.effects;
+      _results = [];
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        effect = _ref[_i];
+        if (!effect.done) {
+          _results.push(effect);
+        }
+      }
+      return _results;
+    }).call(this);
+    if (this.hp <= 0) {
+      this.state = state.DEAD;
+    }
     if (this.order) {
       this.targetCoord = this.order.targetCoord;
       this.orderType = this.order.orderType;
@@ -139,38 +207,57 @@ Planet = (function() {
 })();
 GameModel = (function() {
   function GameModel() {
-    var i;
+    var i, ship, startingShips, _i, _len, _ref;
     this.viewport = {
       x: 0,
       y: 0
     };
+    startingShips = (function() {
+      var _ref, _results;
+      _results = [];
+      for (i = 1, _ref = constants.NUM_SHIPS; (1 <= _ref ? i <= _ref : i >= _ref); (1 <= _ref ? i += 1 : i -= 1)) {
+        _results.push(new Ship(this, (Math.random() > 0.5 ? players.COMPUTER : players.HUMAN), this.randomCoord(), Math.round(Math.random() * 360.0)));
+      }
+      return _results;
+    }).call(this);
     this.model = {
-      ships: (function() {
-        var _ref, _results;
-        _results = [];
-        for (i = 1, _ref = constants.NUM_SHIPS; (1 <= _ref ? i <= _ref : i >= _ref); (1 <= _ref ? i += 1 : i -= 1)) {
-          _results.push(new Ship((Math.random() > 0.5 ? players.COMPUTER : players.HUMAN), {
-            x: Math.round(Math.random() * constants.GAME_WIDTH),
-            y: Math.round(Math.random() * constants.GAME_HEIGHT)
-          }, Math.round(Math.random() * 360.0)));
-        }
-        return _results;
-      })(),
+      ships: startingShips,
       planets: (function() {
         var _ref, _results;
         _results = [];
         for (i = 1, _ref = constants.NUM_PLANETS; (1 <= _ref ? i <= _ref : i >= _ref); (1 <= _ref ? i += 1 : i -= 1)) {
-          _results.push(new Planet({
-            x: Math.round(Math.random() * constants.GAME_WIDTH),
-            y: Math.round(Math.random() * constants.GAME_HEIGHT)
-          }, 20 + Math.round(Math.random() * 100)));
+          _results.push(new Planet(this.randomCoord(), 20 + Math.round(Math.random() * 100)));
         }
         return _results;
-      })(),
+      }).call(this),
       selected: [],
-      bullets: []
+      bullets: (function() {
+        var _ref, _results;
+        _results = [];
+        for (i = 1, _ref = constants.NUM_SHIPS; (1 <= _ref ? i <= _ref : i >= _ref); (1 <= _ref ? i += 1 : i -= 1)) {
+          _results.push(new HomingMissile(this.randomCoord(), 0.0, startingShips[i]));
+        }
+        return _results;
+      }).call(this)
     };
+    _ref = this.model.ships;
+    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+      ship = _ref[_i];
+      ship.effects.push({
+        done: false,
+        apply: function(target) {
+          target.color = colors.randomColor();
+          return this.done = true;
+        }
+      });
+    }
   }
+  GameModel.prototype.randomCoord = function() {
+    return {
+      x: Math.round(Math.random() * constants.GAME_WIDTH),
+      y: Math.round(Math.random() * constants.GAME_HEIGHT)
+    };
+  };
   GameModel.prototype.gameCoord = function(screenCoord) {
     return {
       x: screenCoord.x + this.viewport.x,

@@ -80,8 +80,9 @@ class Renderer
         this.clear()
         this.renderPlanet(planet, viewport) for planet in model.planets when this.nearViewport(planet.coord, viewport)
         this.renderShip(ship, viewport) for ship in model.ships when this.nearViewport(ship.coord, viewport)
-        this.renderShip(bullet, viewport) for bullet in model.bullets when this.nearViewport(ship.coord, viewport)
+        this.renderShip(bullet, viewport) for bullet in model.bullets when this.nearViewport(bullet.coord, viewport)
         
+        #draw select box
         leftPress = input.mouseHeld[mouseButtons.LEFT]
         if (leftPress)
             @ctx.lineWidth = 1

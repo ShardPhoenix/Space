@@ -104,8 +104,8 @@ $("html").mouseup((event) ->
     if startPos
         input.mouseClicked[event.button] = 
             coord: 
-                x: event.clientX - input.xOffset
-                y: event.clientY - input.yOffset
+                x: upX
+                y: upY
             handled: false
     
     $("#debug").text("Mouse button #{event.button} up at: #{event.clientX} left #{event.clientY} down"))

@@ -136,8 +136,8 @@ $("html").mouseup(function(event) {
   if (startPos) {
     input.mouseClicked[event.button] = {
       coord: {
-        x: event.clientX - input.xOffset,
-        y: event.clientY - input.yOffset
+        x: upX,
+        y: upY
       },
       handled: false
     };
