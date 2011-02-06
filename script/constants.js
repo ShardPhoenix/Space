@@ -11,7 +11,7 @@ constants = {
   VIEWPORT_MARGIN: 200,
   NUM_SHIPS: 250,
   NUM_PLANETS: 25,
-  NUM_STARS: 1000
+  NUM_STARS: 1500
 };
 players = {
   COMPUTER: 0,

@@ -542,6 +542,16 @@ GameModel = (function() {
     if (mapDrag) {
       this.viewport.x = Math.round(mapDrag.x * constants.GAME_WIDTH / constants.MINIMAP_WIDTH - constants.CANVAS_WIDTH / 2);
       this.viewport.y = Math.round(mapDrag.y * constants.GAME_HEIGHT / constants.MINIMAP_HEIGHT - constants.CANVAS_HEIGHT / 2);
+      if (this.viewport.x < 0) {
+        this.viewport.x = 0;
+      } else if (this.viewport.x > constants.GAME_WIDTH - constants.CANVAS_WIDTH) {
+        this.viewport.x = constants.GAME_WIDTH - constants.CANVAS_WIDTH;
+      }
+      if (this.viewport.y < 0) {
+        this.viewport.y = 0;
+      } else if (this.viewport.y > constants.GAME_HEIGHT - constants.CANVAS_HEIGHT) {
+        this.viewport.y = constants.GAME_HEIGHT - constants.CANVAS_HEIGHT;
+      }
     }
     _ref8 = this.model.ships;
     for (_t = 0, _len12 = _ref8.length; _t < _len12; _t++) {

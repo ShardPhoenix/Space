@@ -270,7 +270,7 @@ class Star
 
 class GameModel
     constructor: ->
-        #this is the top-left coord of the view in gamespace coordinates
+        #this is the top-left coord of the view in gamespace coordinates - this should probably be in Controller
         @viewport = {x: 0, y: 0}
         
         startingShips = for i in [1..constants.NUM_SHIPS]
@@ -392,6 +392,15 @@ class GameModel
         if mapDrag
             @viewport.x = Math.round(mapDrag.x * constants.GAME_WIDTH/constants.MINIMAP_WIDTH - constants.CANVAS_WIDTH/2)
             @viewport.y = Math.round(mapDrag.y * constants.GAME_HEIGHT/constants.MINIMAP_HEIGHT - constants.CANVAS_HEIGHT/2)
+            #don't go off edge of map
+            if @viewport.x < 0
+                @viewport.x = 0
+            else if @viewport.x > constants.GAME_WIDTH - constants.CANVAS_WIDTH
+                @viewport.x = constants.GAME_WIDTH - constants.CANVAS_WIDTH
+            if @viewport.y < 0
+                @viewport.y = 0
+            else if @viewport.y > constants.GAME_HEIGHT - constants.CANVAS_HEIGHT
+                @viewport.y = constants.GAME_HEIGHT - constants.CANVAS_HEIGHT
 
         #mapClick = minimapInput.mouseClicked[mouseButtons.LEFT]
         #if mapClick and !mapClick.handled
