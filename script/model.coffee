@@ -4,7 +4,7 @@ class Rocket
         @maxDist = 300.0
         @damage = 100
         @radius = 100
-        @speed = 600.0
+        @speed = 200.0
         @coord = coord
         @heading = heading
         @color = colors.RED
@@ -39,7 +39,74 @@ class RocketLauncher
         if (this.readyToFire())
             list.push(new @bulletClass(coord, heading))
             @lastFired = utils.currentTimeMillis()
+            
+class PlasmaBolt
+    constructor: (coord, target) ->
+        @distTravelled = 0
+        @maxDist = 1000.0
+        @damage = 20
+        @radius = 100
+        @speed = 400.0
+        @coord = {x: coord.x, y: coord.y}
+        @target = target
+        @color = colors.RED
+        @width = 6
+        @length = 2
+        @state = state.ACTIVE
+        
+        dx = target.coord.x - coord.x
+        dy = target.coord.y - coord.y
+        theta = Math.atan2(dy, dx)
+        @heading = utils.radToDeg(theta + Math.PI/2)
+        
+    #TODO: make a proper collision algo (for obs with center coord + width + length) and move to utils
+    collided: (coord, target) ->
+        measure = if target.length > target.width then target.length else target.width
+        return utils.abs(coord.x - target.coord.x) < measure/2 and utils.abs(coord.y - target.coord.y) < measure/2
+        
+    update: (dt) ->
+        if @state == state.ACTIVE
+            dist = @speed * dt/1000.0
+            theta = utils.degToRad(@heading)
+            dx = dist * Math.sin(theta)
+            dy = dist * Math.cos(theta)
+            @coord.x += dx
+            @coord.y -= dy
+            @distTravelled += Math.sqrt(dx * dx + dy * dy)
+            
+            if this.collided(@coord, @target)
+                that = this
+                @target.effects.push(
+                    {
+                        done: false
+                        apply: (target) -> 
+                            target.hp -= that.damage
+                            @done = true
+                    })
+                @state = state.DEAD
+            
+            if @distTravelled > @maxDist
+                @state = state.DEAD
 
+class PlasmaGun
+    constructor: (world) ->
+        @world = world
+        @cooldown = 500 #milliseconds
+        @bulletClass = PlasmaBolt
+        @lastFired = utils.currentTimeMillis()
+        @targetRange = 500.0
+       
+    readyToFire: ->
+        (utils.currentTimeMillis() - @lastFired) > @cooldown
+        
+    inRange: (coord1, coord2) ->
+        return utils.dist(coord1, coord2) < @targetRange
+       
+    tryFire: (coord, target) ->
+        if (this.readyToFire() and this.inRange(coord, target.coord))
+            @world.model.bullets.push(new @bulletClass(coord, target))
+            @lastFired = utils.currentTimeMillis()
+            
 class HomingMissile
     constructor: (coord, heading, target) ->
         @target = target #must be a ship
@@ -48,7 +115,7 @@ class HomingMissile
         @maxDist = 1000.0
         @damage = 100
         @radius = 100
-        @speed = 600.0
+        @speed = 200.0
         @coord = coord
         @heading = heading
         @color = colors.WHITE
@@ -71,12 +138,12 @@ class HomingMissile
             
             
             if @coord.x == @target.coord.x and @coord.y == @target.coord.y
-                damage = @damage
+                that = this
                 @target.effects.push(
                     {
                         done: false
                         apply: (target) -> 
-                            target.hp -= damage
+                            target.hp -= that.damage
                             @done = true
                     })
                 @state = state.DEAD
@@ -124,14 +191,33 @@ class Ship
         @color = colors.forPlayer(owner)
         @state = state.ACTIVE
         @selected = false
+        @plasmaGun = new PlasmaGun(world)
         
         @effects = []
         
         #TODO use a queue of orders for shift-clicking
         @order
         @orderType
+        @target
         
         @owner = owner
+        
+    moveToward: (targetCoord, dt) ->
+            dx = targetCoord.x - @coord.x
+            dy = targetCoord.y - @coord.y
+            theta = Math.atan2(dy, dx)
+            
+            @heading = utils.radToDeg(theta)
+            
+            $("#debug").text("Heading: #{@heading}")
+            
+            dist = @speed * dt/1000.0
+            
+            #TODO: do "magic boxes" or similar instead
+            dx2 = dist * Math.cos(theta)
+            dy2 = dist * Math.sin(theta)
+            @coord.x += if utils.abs(dx) > utils.abs(dx2) then dx2 else dx
+            @coord.y += if utils.abs(dy) > utils.abs(dy2) then dy2 else dy
         
     update : (dt) ->
            
@@ -151,25 +237,20 @@ class Ship
         if @order
             #TODO fix this - don't use fields
             @targetCoord = @order.targetCoord
+            @target = @order.target
             @orderType = @order.orderType
             
         if @orderType == orders.MOVE and (@coord.x != @targetCoord.x or @coord.y != @targetCoord.y)
-           
-            dx = @targetCoord.x - @coord.x
-            dy = @targetCoord.y - @coord.y
-            theta = Math.atan2(dy, dx)
+            this.moveToward(@targetCoord, dt)
             
-            @heading = utils.radToDeg(theta)
-            
-            $("#debug").text("Heading: #{@heading}")
-            
-            dist = @speed * dt/1000.0
-            
-            #TODO: do "magic boxes" or similar instead
-            dx2 = dist * Math.cos(theta)
-            dy2 = dist * Math.sin(theta)
-            @coord.x += if utils.abs(dx) > utils.abs(dx2) then dx2 else dx
-            @coord.y += if utils.abs(dy) > utils.abs(dy2) then dy2 else dy
+        if @orderType == orders.ATTACK_TARGET
+            if @target and @target.state == state.ACTIVE
+                if @plasmaGun.targetRange > utils.dist(@coord, @order.target.coord)
+                    @plasmaGun.tryFire(@coord, @order.target)
+                else
+                    this.moveToward(@target.coord, dt)
+            else
+                @orderType = orders.STOP
             
             
         #if @orderType == orders.STOP, do nothing
@@ -196,11 +277,12 @@ class GameModel
                 for i in [1..constants.NUM_PLANETS]
                     new Planet(this.randomCoord(), 20 + Math.round(Math.random() * 100))
             selected: []
-            bullets: 
-                for i in [1..constants.NUM_SHIPS]
-                    new HomingMissile(this.randomCoord(), 0.0, startingShips[i])
+            bullets: []
+               # for i in [1..constants.NUM_SHIPS]
+                    #new HomingMissile(this.randomCoord(), 0.0, startingShips[i-1])
         
 
+        ###
         for ship in @model.ships
             ship.effects.push({
                 done: false
@@ -208,6 +290,7 @@ class GameModel
                     target.color = colors.randomColor()
                     @done = true
             })
+        ###
      
     randomCoord: ->
         {x: Math.round(Math.random() * constants.GAME_WIDTH), y: Math.round(Math.random() * constants.GAME_HEIGHT)}
@@ -216,10 +299,6 @@ class GameModel
         {x: screenCoord.x + @viewport.x, y: screenCoord.y + @viewport.y}
             
     update: (dt) ->
-    
-        #TODO: temp: change all ships colors
-        
-    
     
         #TODO: controls stuff should be in controller, constructing an object with commands in gamespace coords that is passed into here
         
@@ -241,9 +320,18 @@ class GameModel
     
         rightClick = input.mouseClicked[mouseButtons.RIGHT]
         if rightClick? and !rightClick.handled
+            target = null
             realCoord = this.gameCoord(rightClick.coord)
-            for ship in @model.ships
-                if ship.selected
+            selected = (ship for ship in @model.ships when ship.selected)
+            for ship in @model.ships when ship.owner == players.COMPUTER
+                measure = if ship.length > ship.width then ship.length else ship.width
+                if utils.abs(realCoord.x - ship.coord.x) < measure/2 and utils.abs(realCoord.y - ship.coord.y) < measure/2
+                    target = ship  
+            if target?
+                for ship in selected
+                    ship.order = {target: target, orderType: orders.ATTACK_TARGET}
+            else
+                for ship in selected
                     ship.order = {targetCoord: realCoord, orderType: orders.MOVE}
             rightClick.handled = true
             
@@ -255,16 +343,32 @@ class GameModel
         leftClick = input.mouseClicked[mouseButtons.LEFT]
         if leftClick? and !leftClick.handled
             realCoord = this.gameCoord(leftClick.coord)
-            toBeSelected = null
-            for ship in @model.ships when ship.owner == players.HUMAN
-                measure = if ship.length > ship.width then ship.length else ship.width
-                if utils.abs(realCoord.x - ship.coord.x) < measure/2 and utils.abs(realCoord.y - ship.coord.y) < measure/2
-                    toBeSelected = ship
             
-            if toBeSelected?
-                ship.selected = false for ship in @model.ships
-                toBeSelected.selected = true
+            if input.keysHeld[keys.A] #handle as an attack
+                target = null
+                selected = (ship for ship in @model.ships when ship.selected)
+                for ship in @model.ships when ship.owner == players.COMPUTER
+                    measure = if ship.length > ship.width then ship.length else ship.width
+                    if utils.abs(realCoord.x - ship.coord.x) < measure/2 and utils.abs(realCoord.y - ship.coord.y) < measure/2
+                        target = ship
+                if target?
+                    for ship in selected
+                        ship.order = {target: target, orderType: orders.ATTACK_TARGET}
+                else
+                    for ship in selected
+                        ship.order = {targetCoord: realCoord, orderType: orders.ATTACK_AREA}
+                       
+            else #handle as a select
+                toBeSelected = null
+                for ship in @model.ships when ship.owner == players.HUMAN
+                    measure = if ship.length > ship.width then ship.length else ship.width
+                    if utils.abs(realCoord.x - ship.coord.x) < measure/2 and utils.abs(realCoord.y - ship.coord.y) < measure/2
+                        toBeSelected = ship
                 
+                if toBeSelected?
+                    ship.selected = false for ship in @model.ships
+                    toBeSelected.selected = true
+                    
             leftClick.handled = true
     
         if !input.selectBox.handled

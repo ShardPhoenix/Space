@@ -31,6 +31,9 @@ utils = {
     } else {
       return a;
     }
+  },
+  dist: function(coord1, coord2) {
+    return Math.sqrt((coord1.x - coord2.x) * (coord1.x - coord2.x) + (coord1.y - coord2.y) * (coord1.y - coord2.y));
   }
 };
 input = {

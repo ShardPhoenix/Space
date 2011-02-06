@@ -48,8 +48,9 @@ state =
     
 orders =
     MOVE: 0
-    ATTACK: 1
-    STOP : 2
+    ATTACK_TARGET: 1
+    ATTACK_AREA: 2
+    STOP : 3
     
 mouseButtons =
     LEFT: 0

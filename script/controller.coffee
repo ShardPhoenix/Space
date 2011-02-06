@@ -12,6 +12,8 @@ utils =
         if a > b then b else a
     abs: (a) ->
         if a < 0 then -1*a else a
+    dist: (coord1, coord2) ->
+        Math.sqrt((coord1.x - coord2.x) * (coord1.x - coord2.x) + (coord1.y - coord2.y) * (coord1.y - coord2.y))
               
 input =
     xOffset: 0

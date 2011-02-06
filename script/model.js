@@ -1,4 +1,4 @@
-var GameModel, HomingMissile, Planet, Player, Rocket, RocketLauncher, Ship;
+var GameModel, HomingMissile, Planet, PlasmaBolt, PlasmaGun, Player, Rocket, RocketLauncher, Ship;
 var __indexOf = Array.prototype.indexOf || function(item) {
   for (var i = 0, l = this.length; i < l; i++) {
     if (this[i] === item) return i;
@@ -11,7 +11,7 @@ Rocket = (function() {
     this.maxDist = 300.0;
     this.damage = 100;
     this.radius = 100;
-    this.speed = 600.0;
+    this.speed = 200.0;
     this.coord = coord;
     this.heading = heading;
     this.color = colors.RED;
@@ -52,6 +52,83 @@ RocketLauncher = (function() {
   };
   return RocketLauncher;
 })();
+PlasmaBolt = (function() {
+  function PlasmaBolt(coord, target) {
+    var dx, dy, theta;
+    this.distTravelled = 0;
+    this.maxDist = 1000.0;
+    this.damage = 20;
+    this.radius = 100;
+    this.speed = 400.0;
+    this.coord = {
+      x: coord.x,
+      y: coord.y
+    };
+    this.target = target;
+    this.color = colors.RED;
+    this.width = 6;
+    this.length = 2;
+    this.state = state.ACTIVE;
+    dx = target.coord.x - coord.x;
+    dy = target.coord.y - coord.y;
+    theta = Math.atan2(dy, dx);
+    this.heading = utils.radToDeg(theta + Math.PI / 2);
+  }
+  PlasmaBolt.prototype.collided = function(coord, target) {
+    var measure;
+    measure = target.length > target.width ? target.length : target.width;
+    return utils.abs(coord.x - target.coord.x) < measure / 2 && utils.abs(coord.y - target.coord.y) < measure / 2;
+  };
+  PlasmaBolt.prototype.update = function(dt) {
+    var dist, dx, dy, that, theta;
+    if (this.state === state.ACTIVE) {
+      dist = this.speed * dt / 1000.0;
+      theta = utils.degToRad(this.heading);
+      dx = dist * Math.sin(theta);
+      dy = dist * Math.cos(theta);
+      this.coord.x += dx;
+      this.coord.y -= dy;
+      this.distTravelled += Math.sqrt(dx * dx + dy * dy);
+      if (this.collided(this.coord, this.target)) {
+        that = this;
+        this.target.effects.push({
+          done: false,
+          apply: function(target) {
+            target.hp -= that.damage;
+            return this.done = true;
+          }
+        });
+        this.state = state.DEAD;
+      }
+      if (this.distTravelled > this.maxDist) {
+        return this.state = state.DEAD;
+      }
+    }
+  };
+  return PlasmaBolt;
+})();
+PlasmaGun = (function() {
+  function PlasmaGun(world) {
+    this.world = world;
+    this.cooldown = 500;
+    this.bulletClass = PlasmaBolt;
+    this.lastFired = utils.currentTimeMillis();
+    this.targetRange = 500.0;
+  }
+  PlasmaGun.prototype.readyToFire = function() {
+    return (utils.currentTimeMillis() - this.lastFired) > this.cooldown;
+  };
+  PlasmaGun.prototype.inRange = function(coord1, coord2) {
+    return utils.dist(coord1, coord2) < this.targetRange;
+  };
+  PlasmaGun.prototype.tryFire = function(coord, target) {
+    if (this.readyToFire() && this.inRange(coord, target.coord)) {
+      this.world.model.bullets.push(new this.bulletClass(coord, target));
+      return this.lastFired = utils.currentTimeMillis();
+    }
+  };
+  return PlasmaGun;
+})();
 HomingMissile = (function() {
   function HomingMissile(coord, heading, target) {
     this.target = target;
@@ -60,7 +137,7 @@ HomingMissile = (function() {
     this.maxDist = 1000.0;
     this.damage = 100;
     this.radius = 100;
-    this.speed = 600.0;
+    this.speed = 200.0;
     this.coord = coord;
     this.heading = heading;
     this.color = colors.WHITE;
@@ -68,7 +145,7 @@ HomingMissile = (function() {
     this.length = 5;
   }
   HomingMissile.prototype.update = function(dt) {
-    var damage, dist, dx, dx2, dy, dy2, theta;
+    var dist, dx, dx2, dy, dy2, that, theta;
     if (this.distTravelled < this.maxDist && this.target) {
       dx = this.target.coord.x - this.coord.x;
       dy = this.target.coord.y - this.coord.y;
@@ -80,11 +157,11 @@ HomingMissile = (function() {
       this.coord.x += utils.abs(dx) > utils.abs(dx2) ? dx2 : dx;
       this.coord.y += utils.abs(dy) > utils.abs(dy2) ? dy2 : dy;
       if (this.coord.x === this.target.coord.x && this.coord.y === this.target.coord.y) {
-        damage = this.damage;
+        that = this;
         this.target.effects.push({
           done: false,
           apply: function(target) {
-            target.hp -= damage;
+            target.hp -= that.damage;
             return this.done = true;
           }
         });
@@ -148,13 +225,28 @@ Ship = (function() {
     this.color = colors.forPlayer(owner);
     this.state = state.ACTIVE;
     this.selected = false;
+    this.plasmaGun = new PlasmaGun(world);
     this.effects = [];
     this.order;
     this.orderType;
+    this.target;
     this.owner = owner;
   }
+  Ship.prototype.moveToward = function(targetCoord, dt) {
+    var dist, dx, dx2, dy, dy2, theta;
+    dx = targetCoord.x - this.coord.x;
+    dy = targetCoord.y - this.coord.y;
+    theta = Math.atan2(dy, dx);
+    this.heading = utils.radToDeg(theta);
+    $("#debug").text("Heading: " + this.heading);
+    dist = this.speed * dt / 1000.0;
+    dx2 = dist * Math.cos(theta);
+    dy2 = dist * Math.sin(theta);
+    this.coord.x += utils.abs(dx) > utils.abs(dx2) ? dx2 : dx;
+    return this.coord.y += utils.abs(dy) > utils.abs(dy2) ? dy2 : dy;
+  };
   Ship.prototype.update = function(dt) {
-    var dist, dx, dx2, dy, dy2, effect, theta, _i, _len, _ref;
+    var effect, _i, _len, _ref;
     if (this.effects.length > 0) {
       _ref = this.effects;
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
@@ -179,19 +271,22 @@ Ship = (function() {
     }
     if (this.order) {
       this.targetCoord = this.order.targetCoord;
+      this.target = this.order.target;
       this.orderType = this.order.orderType;
     }
     if (this.orderType === orders.MOVE && (this.coord.x !== this.targetCoord.x || this.coord.y !== this.targetCoord.y)) {
-      dx = this.targetCoord.x - this.coord.x;
-      dy = this.targetCoord.y - this.coord.y;
-      theta = Math.atan2(dy, dx);
-      this.heading = utils.radToDeg(theta);
-      $("#debug").text("Heading: " + this.heading);
-      dist = this.speed * dt / 1000.0;
-      dx2 = dist * Math.cos(theta);
-      dy2 = dist * Math.sin(theta);
-      this.coord.x += utils.abs(dx) > utils.abs(dx2) ? dx2 : dx;
-      return this.coord.y += utils.abs(dy) > utils.abs(dy2) ? dy2 : dy;
+      this.moveToward(this.targetCoord, dt);
+    }
+    if (this.orderType === orders.ATTACK_TARGET) {
+      if (this.target && this.target.state === state.ACTIVE) {
+        if (this.plasmaGun.targetRange > utils.dist(this.coord, this.order.target.coord)) {
+          return this.plasmaGun.tryFire(this.coord, this.order.target);
+        } else {
+          return this.moveToward(this.target.coord, dt);
+        }
+      } else {
+        return this.orderType = orders.STOP;
+      }
     }
   };
   return Ship;
@@ -207,7 +302,7 @@ Planet = (function() {
 })();
 GameModel = (function() {
   function GameModel() {
-    var i, ship, startingShips, _i, _len, _ref;
+    var i, startingShips;
     this.viewport = {
       x: 0,
       y: 0
@@ -231,26 +326,17 @@ GameModel = (function() {
         return _results;
       }).call(this),
       selected: [],
-      bullets: (function() {
-        var _ref, _results;
-        _results = [];
-        for (i = 1, _ref = constants.NUM_SHIPS; (1 <= _ref ? i <= _ref : i >= _ref); (1 <= _ref ? i += 1 : i -= 1)) {
-          _results.push(new HomingMissile(this.randomCoord(), 0.0, startingShips[i]));
-        }
-        return _results;
-      }).call(this)
+      bullets: []
     };
-    _ref = this.model.ships;
-    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-      ship = _ref[_i];
-      ship.effects.push({
-        done: false,
-        apply: function(target) {
-          target.color = colors.randomColor();
-          return this.done = true;
-        }
-      });
-    }
+    /*
+    for ship in @model.ships
+        ship.effects.push({
+            done: false
+            apply: (target) ->
+                target.color = colors.randomColor()
+                @done = true
+        })
+    */
   }
   GameModel.prototype.randomCoord = function() {
     return {
@@ -265,7 +351,7 @@ GameModel = (function() {
     };
   };
   GameModel.prototype.update = function(dt) {
-    var bullet, leftClick, mapDrag, measure, realCoord, rightClick, ship, toBeSelected, _i, _j, _k, _l, _len, _len2, _len3, _len4, _len5, _len6, _len7, _len8, _m, _n, _o, _p, _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8;
+    var bullet, leftClick, mapDrag, measure, realCoord, rightClick, selected, ship, target, toBeSelected, _i, _j, _k, _l, _len, _len10, _len11, _len12, _len13, _len2, _len3, _len4, _len5, _len6, _len7, _len8, _len9, _m, _n, _o, _p, _q, _r, _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _s, _t, _u;
     if (input.keysHeld[keys.LEFT]) {
       this.viewport.x -= Math.round(constants.KEY_SCROLL_RATE * dt / 1000.0);
       if (this.viewport.x < 0) {
@@ -292,11 +378,41 @@ GameModel = (function() {
     }
     rightClick = input.mouseClicked[mouseButtons.RIGHT];
     if ((rightClick != null) && !rightClick.handled) {
+      target = null;
       realCoord = this.gameCoord(rightClick.coord);
+      selected = (function() {
+        var _i, _len, _ref, _results;
+        _ref = this.model.ships;
+        _results = [];
+        for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+          ship = _ref[_i];
+          if (ship.selected) {
+            _results.push(ship);
+          }
+        }
+        return _results;
+      }).call(this);
       _ref = this.model.ships;
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
         ship = _ref[_i];
-        if (ship.selected) {
+        if (ship.owner === players.COMPUTER) {
+          measure = ship.length > ship.width ? ship.length : ship.width;
+          if (utils.abs(realCoord.x - ship.coord.x) < measure / 2 && utils.abs(realCoord.y - ship.coord.y) < measure / 2) {
+            target = ship;
+          }
+        }
+      }
+      if (target != null) {
+        for (_j = 0, _len2 = selected.length; _j < _len2; _j++) {
+          ship = selected[_j];
+          ship.order = {
+            target: target,
+            orderType: orders.ATTACK_TARGET
+          };
+        }
+      } else {
+        for (_k = 0, _len3 = selected.length; _k < _len3; _k++) {
+          ship = selected[_k];
           ship.order = {
             targetCoord: realCoord,
             orderType: orders.MOVE
@@ -307,8 +423,8 @@ GameModel = (function() {
     }
     if (input.keysHeld[keys.S]) {
       _ref2 = this.model.ships;
-      for (_j = 0, _len2 = _ref2.length; _j < _len2; _j++) {
-        ship = _ref2[_j];
+      for (_l = 0, _len4 = _ref2.length; _l < _len4; _l++) {
+        ship = _ref2[_l];
         if (ship.selected) {
           ship.order = {
             targetCoord: {},
@@ -320,32 +436,75 @@ GameModel = (function() {
     leftClick = input.mouseClicked[mouseButtons.LEFT];
     if ((leftClick != null) && !leftClick.handled) {
       realCoord = this.gameCoord(leftClick.coord);
-      toBeSelected = null;
-      _ref3 = this.model.ships;
-      for (_k = 0, _len3 = _ref3.length; _k < _len3; _k++) {
-        ship = _ref3[_k];
-        if (ship.owner === players.HUMAN) {
-          measure = ship.length > ship.width ? ship.length : ship.width;
-          if (utils.abs(realCoord.x - ship.coord.x) < measure / 2 && utils.abs(realCoord.y - ship.coord.y) < measure / 2) {
-            toBeSelected = ship;
+      if (input.keysHeld[keys.A]) {
+        target = null;
+        selected = (function() {
+          var _i, _len, _ref, _results;
+          _ref = this.model.ships;
+          _results = [];
+          for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+            ship = _ref[_i];
+            if (ship.selected) {
+              _results.push(ship);
+            }
+          }
+          return _results;
+        }).call(this);
+        _ref3 = this.model.ships;
+        for (_m = 0, _len5 = _ref3.length; _m < _len5; _m++) {
+          ship = _ref3[_m];
+          if (ship.owner === players.COMPUTER) {
+            measure = ship.length > ship.width ? ship.length : ship.width;
+            if (utils.abs(realCoord.x - ship.coord.x) < measure / 2 && utils.abs(realCoord.y - ship.coord.y) < measure / 2) {
+              target = ship;
+            }
           }
         }
-      }
-      if (toBeSelected != null) {
-        _ref4 = this.model.ships;
-        for (_l = 0, _len4 = _ref4.length; _l < _len4; _l++) {
-          ship = _ref4[_l];
-          ship.selected = false;
+        if (target != null) {
+          for (_n = 0, _len6 = selected.length; _n < _len6; _n++) {
+            ship = selected[_n];
+            ship.order = {
+              target: target,
+              orderType: orders.ATTACK_TARGET
+            };
+          }
+        } else {
+          for (_o = 0, _len7 = selected.length; _o < _len7; _o++) {
+            ship = selected[_o];
+            ship.order = {
+              targetCoord: realCoord,
+              orderType: orders.ATTACK_AREA
+            };
+          }
         }
-        toBeSelected.selected = true;
+      } else {
+        toBeSelected = null;
+        _ref4 = this.model.ships;
+        for (_p = 0, _len8 = _ref4.length; _p < _len8; _p++) {
+          ship = _ref4[_p];
+          if (ship.owner === players.HUMAN) {
+            measure = ship.length > ship.width ? ship.length : ship.width;
+            if (utils.abs(realCoord.x - ship.coord.x) < measure / 2 && utils.abs(realCoord.y - ship.coord.y) < measure / 2) {
+              toBeSelected = ship;
+            }
+          }
+        }
+        if (toBeSelected != null) {
+          _ref5 = this.model.ships;
+          for (_q = 0, _len9 = _ref5.length; _q < _len9; _q++) {
+            ship = _ref5[_q];
+            ship.selected = false;
+          }
+          toBeSelected.selected = true;
+        }
       }
       leftClick.handled = true;
     }
     if (!input.selectBox.handled) {
       toBeSelected = [];
-      _ref5 = this.model.ships;
-      for (_m = 0, _len5 = _ref5.length; _m < _len5; _m++) {
-        ship = _ref5[_m];
+      _ref6 = this.model.ships;
+      for (_r = 0, _len10 = _ref6.length; _r < _len10; _r++) {
+        ship = _ref6[_r];
         if (ship.owner === players.HUMAN) {
           if (input.isInBox({
             x: ship.coord.x - this.viewport.x,
@@ -356,9 +515,9 @@ GameModel = (function() {
         }
       }
       if (toBeSelected.length > 0) {
-        _ref6 = this.model.ships;
-        for (_n = 0, _len6 = _ref6.length; _n < _len6; _n++) {
-          ship = _ref6[_n];
+        _ref7 = this.model.ships;
+        for (_s = 0, _len11 = _ref7.length; _s < _len11; _s++) {
+          ship = _ref7[_s];
           ship.selected = __indexOf.call(toBeSelected, ship) >= 0;
         }
       }
@@ -369,14 +528,14 @@ GameModel = (function() {
       this.viewport.x = Math.round(mapDrag.x * constants.GAME_WIDTH / constants.MINIMAP_WIDTH - constants.CANVAS_WIDTH / 2);
       this.viewport.y = Math.round(mapDrag.y * constants.GAME_HEIGHT / constants.MINIMAP_HEIGHT - constants.CANVAS_HEIGHT / 2);
     }
-    _ref7 = this.model.ships;
-    for (_o = 0, _len7 = _ref7.length; _o < _len7; _o++) {
-      ship = _ref7[_o];
+    _ref8 = this.model.ships;
+    for (_t = 0, _len12 = _ref8.length; _t < _len12; _t++) {
+      ship = _ref8[_t];
       ship.update(dt);
     }
-    _ref8 = this.model.bullets;
-    for (_p = 0, _len8 = _ref8.length; _p < _len8; _p++) {
-      bullet = _ref8[_p];
+    _ref9 = this.model.bullets;
+    for (_u = 0, _len13 = _ref9.length; _u < _len13; _u++) {
+      bullet = _ref9[_u];
       bullet.update(dt);
     }
     this.model.ships = (function() {
