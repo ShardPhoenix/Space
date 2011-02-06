@@ -39,6 +39,12 @@ Renderer = (function() {
     this.drawCircle(0, 0, planet.radius, planet.color);
     return this.ctx.restore();
   };
+  Renderer.prototype.renderStar = function(star, viewport) {
+    this.ctx.save();
+    this.ctx.translate(star.coord.x - viewport.x, star.coord.y - viewport.y);
+    this.drawRect(0, 0, 1, 1, star.color);
+    return this.ctx.restore();
+  };
   Renderer.prototype.nearViewport = function(coord, viewport) {
     return coord.x > (viewport.x - constants.VIEWPORT_MARGIN) && coord.x < (viewport.x + constants.CANVAS_WIDTH + constants.VIEWPORT_MARGIN) && coord.y > (viewport.y - constants.VIEWPORT_MARGIN) && coord.y < (viewport.y + constants.CANVAS_HEIGHT + constants.VIEWPORT_MARGIN);
   };
@@ -74,26 +80,33 @@ Renderer = (function() {
     return this.minimap.strokeRect(boxX, boxY, boxWidth, boxHeight);
   };
   Renderer.prototype.render = function(model, viewport) {
-    var bullet, leftPress, planet, ship, _i, _j, _k, _len, _len2, _len3, _ref, _ref2, _ref3;
+    var bullet, leftPress, planet, ship, star, _i, _j, _k, _l, _len, _len2, _len3, _len4, _ref, _ref2, _ref3, _ref4;
     $("#screenCoord").text("Screen X: " + viewport.x + " Screen Y: " + viewport.y);
     this.clear();
-    _ref = model.planets;
+    _ref = model.stars;
     for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-      planet = _ref[_i];
+      star = _ref[_i];
+      if (this.nearViewport(star.coord, viewport)) {
+        this.renderStar(star, viewport);
+      }
+    }
+    _ref2 = model.planets;
+    for (_j = 0, _len2 = _ref2.length; _j < _len2; _j++) {
+      planet = _ref2[_j];
       if (this.nearViewport(planet.coord, viewport)) {
         this.renderPlanet(planet, viewport);
       }
     }
-    _ref2 = model.ships;
-    for (_j = 0, _len2 = _ref2.length; _j < _len2; _j++) {
-      ship = _ref2[_j];
+    _ref3 = model.ships;
+    for (_k = 0, _len3 = _ref3.length; _k < _len3; _k++) {
+      ship = _ref3[_k];
       if (this.nearViewport(ship.coord, viewport)) {
         this.renderShip(ship, viewport);
       }
     }
-    _ref3 = model.bullets;
-    for (_k = 0, _len3 = _ref3.length; _k < _len3; _k++) {
-      bullet = _ref3[_k];
+    _ref4 = model.bullets;
+    for (_l = 0, _len4 = _ref4.length; _l < _len4; _l++) {
+      bullet = _ref4[_l];
       if (this.nearViewport(bullet.coord, viewport)) {
         this.renderShip(bullet, viewport);
       }

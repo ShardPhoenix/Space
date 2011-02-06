@@ -59,7 +59,7 @@ class PlasmaBolt
         theta = Math.atan2(dy, dx)
         @heading = utils.radToDeg(theta + Math.PI/2)
         
-    #TODO: make a proper collision algo (for obs with center coord + width + length) and move to utils
+    #TODO: make a proper collision algo (for objs with center coord + width + length) and move to utils
     collided: (coord, target) ->
         measure = if target.length > target.width then target.length else target.width
         return utils.abs(coord.x - target.coord.x) < measure/2 and utils.abs(coord.y - target.coord.y) < measure/2
@@ -262,6 +262,11 @@ class Planet
         @heading = 0.0
         @radius = radius
         @color = colors.randomColor()
+        
+class Star
+    constructor: (coord) ->
+        @coord = coord
+        @color = colors.WHITE
 
 class GameModel
     constructor: ->
@@ -280,6 +285,8 @@ class GameModel
             bullets: []
                # for i in [1..constants.NUM_SHIPS]
                     #new HomingMissile(this.randomCoord(), 0.0, startingShips[i-1])
+            stars: for i in [1..constants.NUM_STARS]
+                        new Star(this.randomCoord())
         
 
         ###

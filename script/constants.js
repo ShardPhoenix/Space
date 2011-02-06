@@ -10,7 +10,8 @@ constants = {
   KEY_SCROLL_RATE: 600,
   VIEWPORT_MARGIN: 200,
   NUM_SHIPS: 250,
-  NUM_PLANETS: 25
+  NUM_PLANETS: 25,
+  NUM_STARS: 1000
 };
 players = {
   COMPUTER: 0,

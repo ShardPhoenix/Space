@@ -1,4 +1,4 @@
-var GameModel, HomingMissile, Planet, PlasmaBolt, PlasmaGun, Player, Rocket, RocketLauncher, Ship;
+var GameModel, HomingMissile, Planet, PlasmaBolt, PlasmaGun, Player, Rocket, RocketLauncher, Ship, Star;
 var __indexOf = Array.prototype.indexOf || function(item) {
   for (var i = 0, l = this.length; i < l; i++) {
     if (this[i] === item) return i;
@@ -300,6 +300,13 @@ Planet = (function() {
   }
   return Planet;
 })();
+Star = (function() {
+  function Star(coord) {
+    this.coord = coord;
+    this.color = colors.WHITE;
+  }
+  return Star;
+})();
 GameModel = (function() {
   function GameModel() {
     var i, startingShips;
@@ -326,7 +333,15 @@ GameModel = (function() {
         return _results;
       }).call(this),
       selected: [],
-      bullets: []
+      bullets: [],
+      stars: (function() {
+        var _ref, _results;
+        _results = [];
+        for (i = 1, _ref = constants.NUM_STARS; (1 <= _ref ? i <= _ref : i >= _ref); (1 <= _ref ? i += 1 : i -= 1)) {
+          _results.push(new Star(this.randomCoord()));
+        }
+        return _results;
+      }).call(this)
     };
     /*
     for ship in @model.ships

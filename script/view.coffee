@@ -38,6 +38,12 @@ class Renderer
         this.drawCircle(0, 0, planet.radius, planet.color)
         #this.drawRect(0, 0, 1, 1, colors.RED) #color planet's actual coord
         @ctx.restore()
+        
+    renderStar: (star, viewport) ->
+        @ctx.save()      
+        @ctx.translate(star.coord.x - viewport.x, star.coord.y - viewport.y)
+        this.drawRect(0, 0, 1, 1, star.color)
+        @ctx.restore()
     
     nearViewport: (coord, viewport) ->
         coord.x > (viewport.x - constants.VIEWPORT_MARGIN) and coord.x < (viewport.x + constants.CANVAS_WIDTH + constants.VIEWPORT_MARGIN) and
@@ -78,6 +84,7 @@ class Renderer
         $("#screenCoord").text("Screen X: #{viewport.x} Screen Y: #{viewport.y}")
     
         this.clear()
+        this.renderStar(star, viewport) for star in model.stars when this.nearViewport(star.coord, viewport)
         this.renderPlanet(planet, viewport) for planet in model.planets when this.nearViewport(planet.coord, viewport)
         this.renderShip(ship, viewport) for ship in model.ships when this.nearViewport(ship.coord, viewport)
         this.renderShip(bullet, viewport) for bullet in model.bullets when this.nearViewport(bullet.coord, viewport)
