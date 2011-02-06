@@ -3,8 +3,8 @@ constants =
     CANVAS_HEIGHT: 768
     MINIMAP_WIDTH: 384
     MINIMAP_HEIGHT: 288
-    GAME_WIDTH: 5000
-    GAME_HEIGHT: 5000   
+    GAME_WIDTH: 7500
+    GAME_HEIGHT: 7500
     MILLIS_PER_TICK: 20
     KEY_SCROLL_RATE: 600 #pix per second
     VIEWPORT_MARGIN: 200 #rendering margin in pixels

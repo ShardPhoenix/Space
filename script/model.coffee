@@ -388,6 +388,8 @@ class GameModel
                     ship.selected = ship in toBeSelected
             input.selectBox.handled = true
             
+            
+        #TODO: need to better handle drags that start on minimap and go off, and don't draw minimap going off edge    
         mapDrag = minimapInput.mouseHeld[mouseButtons.LEFT]
         if mapDrag
             @viewport.x = Math.round(mapDrag.x * constants.GAME_WIDTH/constants.MINIMAP_WIDTH - constants.CANVAS_WIDTH/2)
@@ -401,12 +403,6 @@ class GameModel
                 @viewport.y = 0
             else if @viewport.y > constants.GAME_HEIGHT - constants.CANVAS_HEIGHT
                 @viewport.y = constants.GAME_HEIGHT - constants.CANVAS_HEIGHT
-
-        #mapClick = minimapInput.mouseClicked[mouseButtons.LEFT]
-        #if mapClick and !mapClick.handled
-        # @viewport.x = Math.round(mapClick.coord.x * constants.GAME_WIDTH/constants.MINIMAP_WIDTH - constants.CANVAS_WIDTH/2)
-        # @viewport.y = Math.round(mapClick.coord.y * constants.GAME_HEIGHT/constants.MINIMAP_HEIGHT - constants.CANVAS_HEIGHT/2)
-        # mapClick.handled = true
             
     
         ship.update(dt) for ship in @model.ships
