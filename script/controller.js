@@ -34,6 +34,23 @@ utils = {
   },
   dist: function(coord1, coord2) {
     return Math.sqrt((coord1.x - coord2.x) * (coord1.x - coord2.x) + (coord1.y - coord2.y) * (coord1.y - coord2.y));
+  },
+  getSlots: function() {
+    var slots;
+    slots = [];
+    if (input.keysHeld[keys.Q]) {
+      slots.push(0);
+    }
+    if (input.keysHeld[keys.W]) {
+      slots.push(1);
+    }
+    if (input.keysHeld[keys.E]) {
+      slots.push(2);
+    }
+    if (input.keysHeld[keys.R]) {
+      slots.push(3);
+    }
+    return slots;
   }
 };
 input = {

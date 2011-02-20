@@ -1,3 +1,28 @@
+###
+ Weapon Ideas (Mechwarrior-like combat):
+ 
+ - Rocket (explodes at point)
+ - Homing missile & anti-missle guns (or missile swarms)
+ - Std. laser
+ - Beam laser - closer == more damage
+ - Rail gun - high damage at all distances, but dodgeable
+ - Weapon weights and sizes to fit slots, affect speed + fuel usage
+ - Energy vs. physical, missile vs. hull?
+ - location-based damage?
+ 
+ - armor + shield types
+ - stealth
+ - extra speed
+ 
+ 
+Also other customization (colors, appearance)
+ 
+###
+
+
+#TODO: coords should probably be immutable (prevents bugs with passing in mutable coords)
+
+
 class Rocket
     constructor: (coord, heading) ->
         @distTravelled = 0
@@ -108,7 +133,7 @@ class PlasmaGun
             @lastFired = utils.currentTimeMillis()
             
 class HomingMissile
-    constructor: (coord, heading, target) ->
+    constructor: (coord, target) ->
         @target = target #must be a ship
         @damage = 100
         @distTravelled = 0
@@ -116,8 +141,8 @@ class HomingMissile
         @damage = 100
         @radius = 100
         @speed = 200.0
-        @coord = coord
-        @heading = heading
+        @coord = {x: coord.x, y: coord.y}
+        @heading = 90.0
         @color = colors.WHITE
         @width = 5
         @length = 5
@@ -135,8 +160,7 @@ class HomingMissile
             @coord.y += if utils.abs(dy) > utils.abs(dy2) then dy2 else dy
             
             #@distTravelled += Math.sqrt(dx * dx + dy * dy)
-            
-            
+                       
             if @coord.x == @target.coord.x and @coord.y == @target.coord.y
                 that = this
                 @target.effects.push(
@@ -149,6 +173,27 @@ class HomingMissile
                 @state = state.DEAD
         else
             @state = state.DEAD
+            
+class HomingMissileLauncher
+    constructor: (world) ->
+        @world = world
+        @cooldown = 2000 #milliseconds
+        @bulletClass = HomingMissile
+        @lastFired = utils.currentTimeMillis()
+        @targetRange = 500.0
+        @ammo = 5
+       
+    readyToFire: ->
+        (utils.currentTimeMillis() - @lastFired) > @cooldown
+        
+    inRange: (coord1, coord2) ->
+        return utils.dist(coord1, coord2) < @targetRange
+       
+    tryFire: (coord, target) ->
+        if (this.readyToFire() and this.inRange(coord, target.coord) and @ammo > 0)
+            @world.model.bullets.push(new @bulletClass(coord, target))
+            @lastFired = utils.currentTimeMillis()
+            @ammo--
 
    
 class Player
@@ -192,6 +237,8 @@ class Ship
         @state = state.ACTIVE
         @selected = false
         @plasmaGun = new PlasmaGun(world)
+          
+        @slots = [new HomingMissileLauncher(world), new PlasmaGun(world), new HomingMissileLauncher(world), new HomingMissileLauncher(world)]
         
         @effects = []
         
@@ -235,7 +282,7 @@ class Ship
     
         #process orders
         if @order
-            #TODO fix this - don't use fields
+            #TODO fix this - don't use fields - use params
             @targetCoord = @order.targetCoord
             @target = @order.target
             @orderType = @order.orderType
@@ -248,6 +295,19 @@ class Ship
                 if @plasmaGun.targetRange > utils.dist(@coord, @order.target.coord)
                     @plasmaGun.tryFire(@coord, @order.target)
                 else
+                    this.moveToward(@target.coord, dt)
+            else
+                @orderType = orders.STOP
+                
+        if @orderType == orders.SHOOT_SLOT
+            if @target and @target.state == state.ACTIVE
+                anyInRange = false
+                for slot in @order.slots
+                    if @slots[slot]
+                        if @slots[slot].targetRange > utils.dist(@coord, @order.target.coord)
+                            anyInRange = true
+                            @slots[slot].tryFire(@coord, @order.target)
+                if !anyInRange
                     this.moveToward(@target.coord, dt)
             else
                 @orderType = orders.STOP
@@ -364,6 +424,18 @@ class GameModel
                 else
                     for ship in selected
                         ship.order = {targetCoord: realCoord, orderType: orders.ATTACK_AREA}
+                                   
+            
+            if input.keysHeld[keys.Q] or input.keysHeld[keys.W] or input.keysHeld[keys.E] or input.keysHeld[keys.R] #handle as slot attack
+                target = null
+                selected = (ship for ship in @model.ships when ship.selected)
+                for ship in @model.ships when ship.owner == players.COMPUTER
+                    measure = if ship.length > ship.width then ship.length else ship.width
+                    if utils.abs(realCoord.x - ship.coord.x) < measure/2 and utils.abs(realCoord.y - ship.coord.y) < measure/2
+                        target = ship
+                if target?
+                    for ship in selected
+                        ship.order = {target: target, slots: utils.getSlots(), orderType: orders.SHOOT_SLOT}
                        
             else #handle as a select
                 toBeSelected = null

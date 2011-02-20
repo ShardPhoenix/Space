@@ -26,7 +26,11 @@ keys = {
   CTRL: 17,
   SHIFT: 16,
   S: 83,
-  A: 65
+  A: 65,
+  Q: 81,
+  W: 87,
+  E: 69,
+  R: 82
 };
 colors = {
   RED: "rgba(255,0,0,1.0)",
@@ -57,7 +61,8 @@ orders = {
   MOVE: 0,
   ATTACK_TARGET: 1,
   ATTACK_AREA: 2,
-  STOP: 3
+  STOP: 3,
+  SHOOT_SLOT_1: 4
 };
 mouseButtons = {
   LEFT: 0,
