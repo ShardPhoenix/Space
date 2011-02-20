@@ -7,7 +7,7 @@
  - Beam laser - closer == more damage
  - Rail gun - high damage at all distances, but dodgeable
  - Weapon weights and sizes to fit slots, affect speed + fuel usage
- - Energy vs. physical, missile vs. hull?
+ - Energy vs. shields, missile vs. hull?
  - location-based damage?
  
  - armor + shield types
@@ -22,6 +22,7 @@ Ideas:
     - Slots of varying sizes (different per ship model) for weapons, defenses, engines, misc comms + scanning, etc
     - Objects - black holes (dungeons?), stars (recharge), stations (bases/shops), planets (mining?), asteroids, wormholes
     - Players can do stuff with bases they control - scanning, manufacturing, player-owned shop, etc
+    - Ships have a cargo limit and ammo has weight etc
     - Metal + energy as resources
     - Ship energy - used to fire, for shields, for fast travel. Like mana.
     
@@ -298,17 +299,15 @@ class Ship
         @effects = []
         
         #TODO use a queue of orders for shift-clicking
-        @order
-        @orderType
-        @target
-        
+        @orders = {}      
         
     moveToward: (targetCoord, dt) ->
             dx = targetCoord.x - @coord.x
             dy = targetCoord.y - @coord.y
             theta = Math.atan2(dy, dx)
             
-            @heading = utils.radToDeg(theta)
+            if utils.abs(dx) > 0 or utils.abs(dy) > 0
+                @heading = utils.radToDeg(theta)
             
             #$("#debug").text("Heading: #{@heading}")
             
@@ -335,52 +334,53 @@ class Ship
         if @hp <= 0
             @state = state.DEAD
     
-        #process orders
-        if @order
-            #TODO fix this - don't use fields - use params
-            @targetCoord = @order.targetCoord
-            @target = @order.target
-            @orderType = @order.orderType
+        moveOrder = @orders[orders.MOVE]
+        attackTargetOrder = @orders[orders.ATTACK_TARGET]
+        shootSlotOrder = @orders[orders.SHOOT_SLOT]
+        randomMoveOrder = @orders[orders.RANDOM_MOVE]
+        stopOrder = @orders[orders.STOP]
+        
+        if stopOrder
+            @orders = {} #cancel all orders             
+            return #don't do anything else
+        
+        if moveOrder and (@coord.x != moveOrder.targetCoord.x or @coord.y != moveOrder.targetCoord.y)
+            this.moveToward(moveOrder.targetCoord, dt)
+            @orders[orders.SHOOT_SLOT] = null
+            @orders[orders.ATTACK_TARGET] = null
             
-        if @orderType == orders.MOVE and (@coord.x != @targetCoord.x or @coord.y != @targetCoord.y)
-            this.moveToward(@targetCoord, dt)
-            
-        if @orderType == orders.ATTACK_TARGET
-            if @target and @target.state == state.ACTIVE
-                if @plasmaGun.targetRange > utils.dist(@coord, @order.target.coord)
-                    @plasmaGun.tryFire(@coord, @order.target)
+        if attackTargetOrder
+            if attackTargetOrder.target and attackTargetOrder.target.state == state.ACTIVE
+                if @plasmaGun.targetRange > utils.dist(@coord, attackTargetOrder.target.coord)
+                    @plasmaGun.tryFire(@coord, attackTargetOrder.target)
                 else
-                    this.moveToward(@target.coord, dt)
+                    this.moveToward(attackTargetOrder.target.coord, dt)
             else
-                @orderType = orders.STOP
-                
-        if @orderType == orders.SHOOT_SLOT
-            if @target and @target.state == state.ACTIVE
+                @orders[orders.ATTACK_TARGET] = null
+       
+        if shootSlotOrder
+            if shootSlotOrder.target and shootSlotOrder.target.state == state.ACTIVE
                 anyInRange = false
-                for slot in @order.slots
+                for slot in shootSlotOrder.slots
                     if @slots[slot]
-                        if @slots[slot].targetRange > utils.dist(@coord, @order.target.coord)
+                        if @slots[slot].targetRange > utils.dist(@coord, shootSlotOrder.target.coord)
                             anyInRange = true
-                            @slots[slot].tryFire(@coord, @order.target)
+                            @slots[slot].tryFire(@coord, shootSlotOrder.target)
+                            @orders[orders.SHOOT_SLOT] = null
                 if !anyInRange
-                    this.moveToward(@target.coord, dt)
-            else
-                @orderType = orders.STOP
-                
-        if @orderType == orders.RANDOM_MOVE
-            if @order.distTravelled < @order.distToMove
-                @order.distTravelled += this.moveToward(@order.targetCoord, dt/4) #go slower
+                    this.moveToward(shootSlotOrder.target.coord, dt)
+                                
+        if randomMoveOrder
+            if randomMoveOrder.distTravelled < randomMoveOrder.distToMove
+                randomMoveOrder.distTravelled += this.moveToward(randomMoveOrder.targetCoord, dt/4) #go slower
             else
                 newCoord = 
                     x: (@coord.x - 100 + Math.round(Math.random() * 200))
                     y: (@coord.y - 100 + Math.round(Math.random() * 200))
                                      
-                @order.distTravelled = 0
-                @order.distToMove = Math.round(Math.random() * 150) + 75
-                @order.targetCoord = newCoord
-            
-            
-        #if @orderType == orders.STOP, do nothing
+                randomMoveOrder.distTravelled = 0
+                randomMoveOrder.distToMove = Math.round(Math.random() * 150) + 75
+                randomMoveOrder.targetCoord = newCoord
         
 
 class Planet
@@ -404,17 +404,19 @@ class GameModel
                             new Ship(this, players.COMPUTER, this.randomCoord(), Math.round(Math.random() * 360.0))
                             
         playerStart = this.randomCoord()
-        startingShips.push new Ship(this, players.HUMAN, playerStart, Math.round(Math.random() * 360.0))
+        thePlayerShip = new Ship(this, players.HUMAN, playerStart, Math.round(Math.random() * 360.0))
+        startingShips.push thePlayerShip         
         
         @viewport = {x: playerStart.x - constants.CANVAS_WIDTH/2, y: playerStart.y - constants.CANVAS_HEIGHT/2}
             
         #start computer ships moving randomly
         for ship in startingShips
            if ship.owner == players.COMPUTER
-               ship.order = {orderType: orders.RANDOM_MOVE, targetCoord: this.randomCoord(), distToMove: Math.round(Math.random() * 100) + 50, distTravelled: 0}
+               ship.orders[orders.RANDOM_MOVE] = {orderType: orders.RANDOM_MOVE, targetCoord: this.randomCoord(), distToMove: Math.round(Math.random() * 100) + 50, distTravelled: 0}
     
         @model =
-            ships: startingShips   
+            ships: startingShips
+            playerShip : thePlayerShip
             planets:
                 for i in [1..constants.NUM_PLANETS]
                     new Planet(this.randomCoord(), 20 + Math.round(Math.random() * 100))
@@ -461,6 +463,27 @@ class GameModel
         if input.keysHeld[keys.DOWN]
             @viewport.y += Math.round(constants.KEY_SCROLL_RATE * dt/1000.0)
             if @viewport.y > (constants.GAME_HEIGHT - constants.CANVAS_HEIGHT) then @viewport.y = (constants.GAME_HEIGHT - constants.CANVAS_HEIGHT)
+            
+            
+            
+        ###
+        if input.keysHeld[keys.W]
+            dist = @speed * dt/1000.0
+            theta = utils.degToRad(@heading)
+            @coord.x += dist * Math.sin(theta)
+            @coord.y -= dist * Math.cos(theta)
+        if input.keysHeld[keys.D]
+            dist = @speed/2 * dt/1000.0
+            theta = utils.degToRad(@heading)
+            @coord.x += dist * Math.sin(theta)
+            @coord.y -= dist * Math.cos(theta)      
+        if input.keysHeld[keys.A]
+            @heading -= @rotSpeed * dt/1000.0
+        if input.keysHeld[keys.S]
+            @heading += @rotSpeed * dt/1000.0
+        ###
+            
+        
     
     
         rightClick = input.mouseClicked[mouseButtons.RIGHT]
@@ -474,16 +497,16 @@ class GameModel
                     target = ship  
             if target?
                 for ship in selected
-                    ship.order = {target: target, orderType: orders.ATTACK_TARGET}
+                    ship.orders[orders.ATTACK_TARGET] = {target: target, orderType: orders.ATTACK_TARGET}
             else
                 for ship in selected
-                    ship.order = {targetCoord: realCoord, orderType: orders.MOVE}
+                    ship.orders[orders.MOVE] = {targetCoord: realCoord, orderType: orders.MOVE}
             rightClick.handled = true
             
         if input.keysHeld[keys.S]
             for ship in @model.ships
                 if ship.selected
-                    ship.order = {targetCoord: {}, orderType: orders.STOP}
+                    ship.orders[orders.STOP] = {targetCoord: {}, orderType: orders.STOP}
             
         leftClick = input.mouseClicked[mouseButtons.LEFT]
         if leftClick? and !leftClick.handled
@@ -498,10 +521,10 @@ class GameModel
                         target = ship
                 if target?
                     for ship in selected
-                        ship.order = {target: target, orderType: orders.ATTACK_TARGET}
+                        ship.orders[orders.ATTACK_TARGET] = {target: target, orderType: orders.ATTACK_TARGET}
                 else
                     for ship in selected
-                        ship.order = {targetCoord: realCoord, orderType: orders.ATTACK_AREA}
+                        ship.orders[orders.ATTACK_AREA] = {targetCoord: realCoord, orderType: orders.ATTACK_AREA}
                                    
             
             if input.keysHeld[keys.Q] or input.keysHeld[keys.W] or input.keysHeld[keys.E] or input.keysHeld[keys.R] #handle as slot attack
@@ -513,7 +536,7 @@ class GameModel
                         target = ship
                 if target?
                     for ship in selected
-                        ship.order = {target: target, slots: utils.getSlots(), orderType: orders.SHOOT_SLOT}
+                        ship.orders[orders.SHOOT_SLOT] = {target: target, slots: utils.getSlots(), orderType: orders.SHOOT_SLOT}
                        
             else #handle as a select
                 toBeSelected = null

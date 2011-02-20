@@ -7,7 +7,7 @@
  - Beam laser - closer == more damage
  - Rail gun - high damage at all distances, but dodgeable
  - Weapon weights and sizes to fit slots, affect speed + fuel usage
- - Energy vs. physical, missile vs. hull?
+ - Energy vs. shields, missile vs. hull?
  - location-based damage?
 
  - armor + shield types
@@ -22,6 +22,7 @@ Ideas:
     - Slots of varying sizes (different per ship model) for weapons, defenses, engines, misc comms + scanning, etc
     - Objects - black holes (dungeons?), stars (recharge), stations (bases/shops), planets (mining?), asteroids, wormholes
     - Players can do stuff with bases they control - scanning, manufacturing, player-owned shop, etc
+    - Ships have a cargo limit and ammo has weight etc
     - Metal + energy as resources
     - Ship energy - used to fire, for shields, for fast travel. Like mana.
 
@@ -339,16 +340,16 @@ Ship = (function() {
     this.plasmaGun = new PlasmaGun(world);
     this.slots = [new HomingMissileLauncher(world), new RocketLauncher(world), new PlasmaGun(world), new PlasmaGun(world)];
     this.effects = [];
-    this.order;
-    this.orderType;
-    this.target;
+    this.orders = {};
   }
   Ship.prototype.moveToward = function(targetCoord, dt) {
     var dist, dx, dx2, dy, dy2, theta;
     dx = targetCoord.x - this.coord.x;
     dy = targetCoord.y - this.coord.y;
     theta = Math.atan2(dy, dx);
-    this.heading = utils.radToDeg(theta);
+    if (utils.abs(dx) > 0 || utils.abs(dy) > 0) {
+      this.heading = utils.radToDeg(theta);
+    }
     dist = this.speed * dt / 1000.0;
     dx2 = dist * Math.cos(theta);
     dy2 = dist * Math.sin(theta);
@@ -357,7 +358,7 @@ Ship = (function() {
     return dist;
   };
   Ship.prototype.update = function(dt) {
-    var anyInRange, effect, newCoord, slot, _i, _j, _len, _len2, _ref, _ref2;
+    var anyInRange, attackTargetOrder, effect, moveOrder, newCoord, randomMoveOrder, shootSlotOrder, slot, stopOrder, _i, _j, _len, _len2, _ref, _ref2;
     if (this.effects.length > 0) {
       _ref = this.effects;
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
@@ -380,56 +381,61 @@ Ship = (function() {
     if (this.hp <= 0) {
       this.state = state.DEAD;
     }
-    if (this.order) {
-      this.targetCoord = this.order.targetCoord;
-      this.target = this.order.target;
-      this.orderType = this.order.orderType;
+    moveOrder = this.orders[orders.MOVE];
+    attackTargetOrder = this.orders[orders.ATTACK_TARGET];
+    shootSlotOrder = this.orders[orders.SHOOT_SLOT];
+    randomMoveOrder = this.orders[orders.RANDOM_MOVE];
+    stopOrder = this.orders[orders.STOP];
+    if (stopOrder) {
+      this.orders = {};
+      return;
     }
-    if (this.orderType === orders.MOVE && (this.coord.x !== this.targetCoord.x || this.coord.y !== this.targetCoord.y)) {
-      this.moveToward(this.targetCoord, dt);
+    if (moveOrder && (this.coord.x !== moveOrder.targetCoord.x || this.coord.y !== moveOrder.targetCoord.y)) {
+      this.moveToward(moveOrder.targetCoord, dt);
+      this.orders[orders.SHOOT_SLOT] = null;
+      this.orders[orders.ATTACK_TARGET] = null;
     }
-    if (this.orderType === orders.ATTACK_TARGET) {
-      if (this.target && this.target.state === state.ACTIVE) {
-        if (this.plasmaGun.targetRange > utils.dist(this.coord, this.order.target.coord)) {
-          this.plasmaGun.tryFire(this.coord, this.order.target);
+    if (attackTargetOrder) {
+      if (attackTargetOrder.target && attackTargetOrder.target.state === state.ACTIVE) {
+        if (this.plasmaGun.targetRange > utils.dist(this.coord, attackTargetOrder.target.coord)) {
+          this.plasmaGun.tryFire(this.coord, attackTargetOrder.target);
         } else {
-          this.moveToward(this.target.coord, dt);
+          this.moveToward(attackTargetOrder.target.coord, dt);
         }
       } else {
-        this.orderType = orders.STOP;
+        this.orders[orders.ATTACK_TARGET] = null;
       }
     }
-    if (this.orderType === orders.SHOOT_SLOT) {
-      if (this.target && this.target.state === state.ACTIVE) {
+    if (shootSlotOrder) {
+      if (shootSlotOrder.target && shootSlotOrder.target.state === state.ACTIVE) {
         anyInRange = false;
-        _ref2 = this.order.slots;
+        _ref2 = shootSlotOrder.slots;
         for (_j = 0, _len2 = _ref2.length; _j < _len2; _j++) {
           slot = _ref2[_j];
           if (this.slots[slot]) {
-            if (this.slots[slot].targetRange > utils.dist(this.coord, this.order.target.coord)) {
+            if (this.slots[slot].targetRange > utils.dist(this.coord, shootSlotOrder.target.coord)) {
               anyInRange = true;
-              this.slots[slot].tryFire(this.coord, this.order.target);
+              this.slots[slot].tryFire(this.coord, shootSlotOrder.target);
+              this.orders[orders.SHOOT_SLOT] = null;
             }
           }
         }
         if (!anyInRange) {
-          this.moveToward(this.target.coord, dt);
+          this.moveToward(shootSlotOrder.target.coord, dt);
         }
-      } else {
-        this.orderType = orders.STOP;
       }
     }
-    if (this.orderType === orders.RANDOM_MOVE) {
-      if (this.order.distTravelled < this.order.distToMove) {
-        return this.order.distTravelled += this.moveToward(this.order.targetCoord, dt / 4);
+    if (randomMoveOrder) {
+      if (randomMoveOrder.distTravelled < randomMoveOrder.distToMove) {
+        return randomMoveOrder.distTravelled += this.moveToward(randomMoveOrder.targetCoord, dt / 4);
       } else {
         newCoord = {
           x: this.coord.x - 100 + Math.round(Math.random() * 200),
           y: this.coord.y - 100 + Math.round(Math.random() * 200)
         };
-        this.order.distTravelled = 0;
-        this.order.distToMove = Math.round(Math.random() * 150) + 75;
-        return this.order.targetCoord = newCoord;
+        randomMoveOrder.distTravelled = 0;
+        randomMoveOrder.distToMove = Math.round(Math.random() * 150) + 75;
+        return randomMoveOrder.targetCoord = newCoord;
       }
     }
   };
@@ -453,7 +459,7 @@ Star = (function() {
 })();
 GameModel = (function() {
   function GameModel() {
-    var i, playerStart, ship, startingShips, _i, _len;
+    var i, playerStart, ship, startingShips, thePlayerShip, _i, _len;
     this.viewport = {
       x: 0,
       y: 0
@@ -467,7 +473,8 @@ GameModel = (function() {
       return _results;
     }).call(this);
     playerStart = this.randomCoord();
-    startingShips.push(new Ship(this, players.HUMAN, playerStart, Math.round(Math.random() * 360.0)));
+    thePlayerShip = new Ship(this, players.HUMAN, playerStart, Math.round(Math.random() * 360.0));
+    startingShips.push(thePlayerShip);
     this.viewport = {
       x: playerStart.x - constants.CANVAS_WIDTH / 2,
       y: playerStart.y - constants.CANVAS_HEIGHT / 2
@@ -475,7 +482,7 @@ GameModel = (function() {
     for (_i = 0, _len = startingShips.length; _i < _len; _i++) {
       ship = startingShips[_i];
       if (ship.owner === players.COMPUTER) {
-        ship.order = {
+        ship.orders[orders.RANDOM_MOVE] = {
           orderType: orders.RANDOM_MOVE,
           targetCoord: this.randomCoord(),
           distToMove: Math.round(Math.random() * 100) + 50,
@@ -485,6 +492,7 @@ GameModel = (function() {
     }
     this.model = {
       ships: startingShips,
+      playerShip: thePlayerShip,
       planets: (function() {
         var _ref, _results;
         _results = [];
@@ -553,6 +561,22 @@ GameModel = (function() {
         this.viewport.y = constants.GAME_HEIGHT - constants.CANVAS_HEIGHT;
       }
     }
+    /*
+    if input.keysHeld[keys.W]
+        dist = @speed * dt/1000.0
+        theta = utils.degToRad(@heading)
+        @coord.x += dist * Math.sin(theta)
+        @coord.y -= dist * Math.cos(theta)
+    if input.keysHeld[keys.D]
+        dist = @speed/2 * dt/1000.0
+        theta = utils.degToRad(@heading)
+        @coord.x += dist * Math.sin(theta)
+        @coord.y -= dist * Math.cos(theta)
+    if input.keysHeld[keys.A]
+        @heading -= @rotSpeed * dt/1000.0
+    if input.keysHeld[keys.S]
+        @heading += @rotSpeed * dt/1000.0
+    */
     rightClick = input.mouseClicked[mouseButtons.RIGHT];
     if ((rightClick != null) && !rightClick.handled) {
       target = null;
@@ -582,7 +606,7 @@ GameModel = (function() {
       if (target != null) {
         for (_j = 0, _len2 = selected.length; _j < _len2; _j++) {
           ship = selected[_j];
-          ship.order = {
+          ship.orders[orders.ATTACK_TARGET] = {
             target: target,
             orderType: orders.ATTACK_TARGET
           };
@@ -590,7 +614,7 @@ GameModel = (function() {
       } else {
         for (_k = 0, _len3 = selected.length; _k < _len3; _k++) {
           ship = selected[_k];
-          ship.order = {
+          ship.orders[orders.MOVE] = {
             targetCoord: realCoord,
             orderType: orders.MOVE
           };
@@ -603,7 +627,7 @@ GameModel = (function() {
       for (_l = 0, _len4 = _ref2.length; _l < _len4; _l++) {
         ship = _ref2[_l];
         if (ship.selected) {
-          ship.order = {
+          ship.orders[orders.STOP] = {
             targetCoord: {},
             orderType: orders.STOP
           };
@@ -640,7 +664,7 @@ GameModel = (function() {
         if (target != null) {
           for (_n = 0, _len6 = selected.length; _n < _len6; _n++) {
             ship = selected[_n];
-            ship.order = {
+            ship.orders[orders.ATTACK_TARGET] = {
               target: target,
               orderType: orders.ATTACK_TARGET
             };
@@ -648,7 +672,7 @@ GameModel = (function() {
         } else {
           for (_o = 0, _len7 = selected.length; _o < _len7; _o++) {
             ship = selected[_o];
-            ship.order = {
+            ship.orders[orders.ATTACK_AREA] = {
               targetCoord: realCoord,
               orderType: orders.ATTACK_AREA
             };
@@ -682,7 +706,7 @@ GameModel = (function() {
         if (target != null) {
           for (_q = 0, _len9 = selected.length; _q < _len9; _q++) {
             ship = selected[_q];
-            ship.order = {
+            ship.orders[orders.SHOOT_SLOT] = {
               target: target,
               slots: utils.getSlots(),
               orderType: orders.SHOOT_SLOT
