@@ -57,6 +57,7 @@ orders =
     ATTACK_AREA: 2
     STOP : 3
     SHOOT_SLOT_1: 4
+    RANDOM_MOVE: 5
     
 mouseButtons =
     LEFT: 0

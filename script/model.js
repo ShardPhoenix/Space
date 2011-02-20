@@ -271,13 +271,13 @@ Ship = (function() {
     this.color = colors.forPlayer(owner);
     this.state = state.ACTIVE;
     this.selected = false;
+    this.owner = owner;
     this.plasmaGun = new PlasmaGun(world);
     this.slots = [new HomingMissileLauncher(world), new PlasmaGun(world), new HomingMissileLauncher(world), new HomingMissileLauncher(world)];
     this.effects = [];
     this.order;
     this.orderType;
     this.target;
-    this.owner = owner;
   }
   Ship.prototype.moveToward = function(targetCoord, dt) {
     var dist, dx, dx2, dy, dy2, theta;
@@ -285,15 +285,15 @@ Ship = (function() {
     dy = targetCoord.y - this.coord.y;
     theta = Math.atan2(dy, dx);
     this.heading = utils.radToDeg(theta);
-    $("#debug").text("Heading: " + this.heading);
     dist = this.speed * dt / 1000.0;
     dx2 = dist * Math.cos(theta);
     dy2 = dist * Math.sin(theta);
     this.coord.x += utils.abs(dx) > utils.abs(dx2) ? dx2 : dx;
-    return this.coord.y += utils.abs(dy) > utils.abs(dy2) ? dy2 : dy;
+    this.coord.y += utils.abs(dy) > utils.abs(dy2) ? dy2 : dy;
+    return dist;
   };
   Ship.prototype.update = function(dt) {
-    var anyInRange, effect, slot, _i, _j, _len, _len2, _ref, _ref2;
+    var anyInRange, effect, newCoord, slot, _i, _j, _len, _len2, _ref, _ref2;
     if (this.effects.length > 0) {
       _ref = this.effects;
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
@@ -349,10 +349,23 @@ Ship = (function() {
           }
         }
         if (!anyInRange) {
-          return this.moveToward(this.target.coord, dt);
+          this.moveToward(this.target.coord, dt);
         }
       } else {
-        return this.orderType = orders.STOP;
+        this.orderType = orders.STOP;
+      }
+    }
+    if (this.orderType === orders.RANDOM_MOVE) {
+      if (this.order.distTravelled < this.order.distToMove) {
+        return this.order.distTravelled += this.moveToward(this.order.targetCoord, dt / 4);
+      } else {
+        newCoord = {
+          x: this.coord.x - 100 + Math.round(Math.random() * 200),
+          y: this.coord.y - 100 + Math.round(Math.random() * 200)
+        };
+        this.order.distTravelled = 0;
+        this.order.distToMove = Math.round(Math.random() * 150) + 75;
+        return this.order.targetCoord = newCoord;
       }
     }
   };
@@ -376,7 +389,7 @@ Star = (function() {
 })();
 GameModel = (function() {
   function GameModel() {
-    var i, startingShips;
+    var i, ship, startingShips, _i, _len;
     this.viewport = {
       x: 0,
       y: 0
@@ -389,6 +402,17 @@ GameModel = (function() {
       }
       return _results;
     }).call(this);
+    for (_i = 0, _len = startingShips.length; _i < _len; _i++) {
+      ship = startingShips[_i];
+      if (ship.owner === players.COMPUTER) {
+        ship.order = {
+          orderType: orders.RANDOM_MOVE,
+          targetCoord: this.randomCoord(),
+          distToMove: Math.round(Math.random() * 100) + 50,
+          distTravelled: 0
+        };
+      }
+    }
     this.model = {
       ships: startingShips,
       planets: (function() {

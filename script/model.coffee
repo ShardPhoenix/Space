@@ -236,6 +236,8 @@ class Ship
         @color = colors.forPlayer(owner)
         @state = state.ACTIVE
         @selected = false
+        @owner = owner
+        
         @plasmaGun = new PlasmaGun(world)
           
         @slots = [new HomingMissileLauncher(world), new PlasmaGun(world), new HomingMissileLauncher(world), new HomingMissileLauncher(world)]
@@ -247,7 +249,6 @@ class Ship
         @orderType
         @target
         
-        @owner = owner
         
     moveToward: (targetCoord, dt) ->
             dx = targetCoord.x - @coord.x
@@ -256,7 +257,7 @@ class Ship
             
             @heading = utils.radToDeg(theta)
             
-            $("#debug").text("Heading: #{@heading}")
+            #$("#debug").text("Heading: #{@heading}")
             
             dist = @speed * dt/1000.0
             
@@ -265,9 +266,10 @@ class Ship
             dy2 = dist * Math.sin(theta)
             @coord.x += if utils.abs(dx) > utils.abs(dx2) then dx2 else dx
             @coord.y += if utils.abs(dy) > utils.abs(dy2) then dy2 else dy
+            
+            return dist
         
-    update : (dt) ->
-           
+    update : (dt) ->     
         #process externally imposed effects
         if @effects.length > 0
             for effect in @effects
@@ -311,6 +313,18 @@ class Ship
                     this.moveToward(@target.coord, dt)
             else
                 @orderType = orders.STOP
+                
+        if @orderType == orders.RANDOM_MOVE
+            if @order.distTravelled < @order.distToMove
+                @order.distTravelled += this.moveToward(@order.targetCoord, dt/4) #go slower
+            else
+                newCoord = 
+                    x: (@coord.x - 100 + Math.round(Math.random() * 200))
+                    y: (@coord.y - 100 + Math.round(Math.random() * 200))
+                                     
+                @order.distTravelled = 0
+                @order.distToMove = Math.round(Math.random() * 150) + 75
+                @order.targetCoord = newCoord
             
             
         #if @orderType == orders.STOP, do nothing
@@ -335,6 +349,11 @@ class GameModel
         
         startingShips = for i in [1..constants.NUM_SHIPS]
                             new Ship(this, (if Math.random() > 0.5 then players.COMPUTER else players.HUMAN), this.randomCoord(), Math.round(Math.random() * 360.0))
+            
+        #start computer ships moving randomly
+        for ship in startingShips
+           if ship.owner == players.COMPUTER
+               ship.order = {orderType: orders.RANDOM_MOVE, targetCoord: this.randomCoord(), distToMove: Math.round(Math.random() * 100) + 50, distTravelled: 0}
     
         @model =
             ships: startingShips   
