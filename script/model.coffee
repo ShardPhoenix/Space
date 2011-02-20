@@ -495,6 +495,9 @@ class GameModel
         @model.playerShip.orders[orders.ACCEL_BACKWARD] = input.keysHeld[keys.S]           
         @model.playerShip.orders[orders.ROTATE_LEFT] = input.keysHeld[keys.A]        
         @model.playerShip.orders[orders.ROTATE_RIGHT] = input.keysHeld[keys.D]
+        
+        if input.keysHeld[keys.W] or input.keysHeld[keys.S] or input.keysHeld[keys.A] or input.keysHeld[keys.D]
+            @viewport = {x: @model.playerShip.coord.x - constants.CANVAS_WIDTH/2, y: @model.playerShip.coord.y - constants.CANVAS_HEIGHT/2}
 
         rightClick = input.mouseClicked[mouseButtons.RIGHT]
         if rightClick? and !rightClick.handled

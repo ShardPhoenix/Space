@@ -592,6 +592,12 @@ GameModel = (function() {
     this.model.playerShip.orders[orders.ACCEL_BACKWARD] = input.keysHeld[keys.S];
     this.model.playerShip.orders[orders.ROTATE_LEFT] = input.keysHeld[keys.A];
     this.model.playerShip.orders[orders.ROTATE_RIGHT] = input.keysHeld[keys.D];
+    if (input.keysHeld[keys.W] || input.keysHeld[keys.S] || input.keysHeld[keys.A] || input.keysHeld[keys.D]) {
+      this.viewport = {
+        x: this.model.playerShip.coord.x - constants.CANVAS_WIDTH / 2,
+        y: this.model.playerShip.coord.y - constants.CANVAS_HEIGHT / 2
+      };
+    }
     rightClick = input.mouseClicked[mouseButtons.RIGHT];
     if ((rightClick != null) && !rightClick.handled) {
       target = null;
