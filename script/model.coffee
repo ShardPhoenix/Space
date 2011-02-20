@@ -104,7 +104,7 @@ class RocketLauncher
         @bulletClass = Rocket
         @lastFired = utils.currentTimeMillis()
         @targetRange = 400.0
-        @ammo = 20
+        @ammo = 9999
        
     readyToFire: ->
         (utils.currentTimeMillis() - @lastFired) > @cooldown
@@ -235,7 +235,7 @@ class HomingMissileLauncher
         @bulletClass = HomingMissile
         @lastFired = utils.currentTimeMillis()
         @targetRange = 500.0
-        @ammo = 5
+        @ammo = 9999
        
     readyToFire: ->
         (utils.currentTimeMillis() - @lastFired) > @cooldown
@@ -499,6 +499,28 @@ class GameModel
         
         if input.keysHeld[keys.W] or input.keysHeld[keys.S] or input.keysHeld[keys.A] or input.keysHeld[keys.D]
             @viewport = {x: @model.playerShip.coord.x - constants.CANVAS_WIDTH/2, y: @model.playerShip.coord.y - constants.CANVAS_HEIGHT/2}
+            
+        if input.keysHeld[keys.Q] or input.keysHeld[keys.E] or input.keysHeld[keys.R] or input.keysHeld[keys.F] #handle as slot attack
+            target = null
+            targeted = (ship for ship in @model.ships when ship.targeted)
+            selected = (ship for ship in @model.ships when ship.selected)
+            
+            #for ship in @model.ships when ship.owner == players.COMPUTER
+            #    measure = if ship.length > ship.width then ship.length else ship.width
+            #    if utils.abs(realCoord.x - ship.coord.x) < measure/2 and utils.abs(realCoord.y - ship.coord.y) < measure/2
+            #        target = ship
+            
+            #shoot at closest target
+            if targeted.length > 0
+                bestDistance = utils.dist(targeted[0].coord, @model.playerShip.coord)
+                target = targeted[0]
+                for ship in targeted
+                    distance = utils.dist(ship.coord, @model.playerShip.coord)
+                    if distance < bestDistance
+                        target = ship
+                        bestDistance = distance
+                for ship in selected
+                    ship.orders[orders.SHOOT_SLOT] = {target: target, slots: utils.getSlots(), orderType: orders.SHOOT_SLOT}
 
         rightClick = input.mouseClicked[mouseButtons.RIGHT]
         if rightClick? and !rightClick.handled
@@ -539,18 +561,7 @@ class GameModel
                 else
                     for ship in selected
                         ship.orders[orders.ATTACK_AREA] = {targetCoord: realCoord, orderType: orders.ATTACK_AREA}
-                                   
-            
-            if input.keysHeld[keys.Q] or input.keysHeld[keys.E] or input.keysHeld[keys.R] or input.keysHeld[keys.F] #handle as slot attack
-                target = null
-                selected = (ship for ship in @model.ships when ship.selected)
-                for ship in @model.ships when ship.owner == players.COMPUTER
-                    measure = if ship.length > ship.width then ship.length else ship.width
-                    if utils.abs(realCoord.x - ship.coord.x) < measure/2 and utils.abs(realCoord.y - ship.coord.y) < measure/2
-                        target = ship
-                if target?
-                    for ship in selected
-                        ship.orders[orders.SHOOT_SLOT] = {target: target, slots: utils.getSlots(), orderType: orders.SHOOT_SLOT}
+                                              
                        
             else #handle as a select
                 toBeSelected = null
@@ -573,9 +584,12 @@ class GameModel
     
         if !input.selectBox.handled
             toBeSelected = []
-            for ship in @model.ships when ship.owner == players.HUMAN
+            for ship in @model.ships
                 if input.isInBox({x: ship.coord.x - @viewport.x, y: ship.coord.y - @viewport.y})
-                    toBeSelected.push(ship)
+                    if ship.owner == players.HUMAN
+                        toBeSelected.push(ship)
+                    else 
+                        ship.targeted = true
             if toBeSelected.length > 0
                 for ship in @model.ships
                     ship.selected = ship in toBeSelected

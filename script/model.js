@@ -119,7 +119,7 @@ RocketLauncher = (function() {
     this.bulletClass = Rocket;
     this.lastFired = utils.currentTimeMillis();
     this.targetRange = 400.0;
-    this.ammo = 20;
+    this.ammo = 9999;
   }
   RocketLauncher.prototype.readyToFire = function() {
     return (utils.currentTimeMillis() - this.lastFired) > this.cooldown;
@@ -267,7 +267,7 @@ HomingMissileLauncher = (function() {
     this.bulletClass = HomingMissile;
     this.lastFired = utils.currentTimeMillis();
     this.targetRange = 500.0;
-    this.ammo = 5;
+    this.ammo = 9999;
   }
   HomingMissileLauncher.prototype.readyToFire = function() {
     return (utils.currentTimeMillis() - this.lastFired) > this.cooldown;
@@ -564,7 +564,7 @@ GameModel = (function() {
     };
   };
   GameModel.prototype.update = function(dt) {
-    var bullet, explosion, leftClick, mapDrag, measure, realCoord, rightClick, selected, ship, target, toBeSelected, toBeTargeted, _i, _j, _k, _l, _len, _len10, _len11, _len12, _len13, _len14, _len15, _len16, _len2, _len3, _len4, _len5, _len6, _len7, _len8, _len9, _m, _n, _o, _p, _q, _r, _ref, _ref10, _ref11, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _s, _t, _u, _v, _w, _x;
+    var bestDistance, bullet, distance, explosion, leftClick, mapDrag, measure, realCoord, rightClick, selected, ship, target, targeted, toBeSelected, toBeTargeted, _i, _j, _k, _l, _len, _len10, _len11, _len12, _len13, _len14, _len15, _len16, _len2, _len3, _len4, _len5, _len6, _len7, _len8, _len9, _m, _n, _o, _p, _q, _r, _ref, _ref10, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _s, _t, _u, _v, _w, _x;
     if (input.keysHeld[keys.LEFT]) {
       this.viewport.x -= Math.round(constants.KEY_SCROLL_RATE * dt / 1000.0);
       if (this.viewport.x < 0) {
@@ -599,6 +599,53 @@ GameModel = (function() {
         y: this.model.playerShip.coord.y - constants.CANVAS_HEIGHT / 2
       };
     }
+    if (input.keysHeld[keys.Q] || input.keysHeld[keys.E] || input.keysHeld[keys.R] || input.keysHeld[keys.F]) {
+      target = null;
+      targeted = (function() {
+        var _i, _len, _ref, _results;
+        _ref = this.model.ships;
+        _results = [];
+        for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+          ship = _ref[_i];
+          if (ship.targeted) {
+            _results.push(ship);
+          }
+        }
+        return _results;
+      }).call(this);
+      selected = (function() {
+        var _i, _len, _ref, _results;
+        _ref = this.model.ships;
+        _results = [];
+        for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+          ship = _ref[_i];
+          if (ship.selected) {
+            _results.push(ship);
+          }
+        }
+        return _results;
+      }).call(this);
+      if (targeted.length > 0) {
+        bestDistance = utils.dist(targeted[0].coord, this.model.playerShip.coord);
+        target = targeted[0];
+        for (_i = 0, _len = targeted.length; _i < _len; _i++) {
+          ship = targeted[_i];
+          distance = utils.dist(ship.coord, this.model.playerShip.coord);
+          if (distance < bestDistance) {
+            target = ship;
+            bestDistance = distance;
+          }
+        }
+        for (_j = 0, _len2 = selected.length; _j < _len2; _j++) {
+          ship = selected[_j];
+          ship.orders[orders.SHOOT_SLOT] = {
+            target: target,
+            slots: utils.getSlots(),
+            orderType: orders.SHOOT_SLOT
+          };
+        }
+      }
+    }
     rightClick = input.mouseClicked[mouseButtons.RIGHT];
     if ((rightClick != null) && !rightClick.handled) {
       target = null;
@@ -616,8 +663,8 @@ GameModel = (function() {
         return _results;
       }).call(this);
       _ref = this.model.ships;
-      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-        ship = _ref[_i];
+      for (_k = 0, _len3 = _ref.length; _k < _len3; _k++) {
+        ship = _ref[_k];
         if (ship.owner === players.COMPUTER) {
           measure = ship.length > ship.width ? ship.length : ship.width;
           if (utils.abs(realCoord.x - ship.coord.x) < measure / 2 && utils.abs(realCoord.y - ship.coord.y) < measure / 2) {
@@ -626,16 +673,16 @@ GameModel = (function() {
         }
       }
       if (target != null) {
-        for (_j = 0, _len2 = selected.length; _j < _len2; _j++) {
-          ship = selected[_j];
+        for (_l = 0, _len4 = selected.length; _l < _len4; _l++) {
+          ship = selected[_l];
           ship.orders[orders.ATTACK_TARGET] = {
             target: target,
             orderType: orders.ATTACK_TARGET
           };
         }
       } else {
-        for (_k = 0, _len3 = selected.length; _k < _len3; _k++) {
-          ship = selected[_k];
+        for (_m = 0, _len5 = selected.length; _m < _len5; _m++) {
+          ship = selected[_m];
           ship.orders[orders.MOVE] = {
             targetCoord: realCoord,
             orderType: orders.MOVE
@@ -662,8 +709,8 @@ GameModel = (function() {
           return _results;
         }).call(this);
         _ref2 = this.model.ships;
-        for (_l = 0, _len4 = _ref2.length; _l < _len4; _l++) {
-          ship = _ref2[_l];
+        for (_n = 0, _len6 = _ref2.length; _n < _len6; _n++) {
+          ship = _ref2[_n];
           if (ship.owner === players.COMPUTER) {
             measure = ship.length > ship.width ? ship.length : ship.width;
             if (utils.abs(realCoord.x - ship.coord.x) < measure / 2 && utils.abs(realCoord.y - ship.coord.y) < measure / 2) {
@@ -672,63 +719,28 @@ GameModel = (function() {
           }
         }
         if (target != null) {
-          for (_m = 0, _len5 = selected.length; _m < _len5; _m++) {
-            ship = selected[_m];
+          for (_o = 0, _len7 = selected.length; _o < _len7; _o++) {
+            ship = selected[_o];
             ship.orders[orders.ATTACK_TARGET] = {
               target: target,
               orderType: orders.ATTACK_TARGET
             };
           }
         } else {
-          for (_n = 0, _len6 = selected.length; _n < _len6; _n++) {
-            ship = selected[_n];
+          for (_p = 0, _len8 = selected.length; _p < _len8; _p++) {
+            ship = selected[_p];
             ship.orders[orders.ATTACK_AREA] = {
               targetCoord: realCoord,
               orderType: orders.ATTACK_AREA
             };
           }
         }
-      }
-      if (input.keysHeld[keys.Q] || input.keysHeld[keys.E] || input.keysHeld[keys.R] || input.keysHeld[keys.F]) {
-        target = null;
-        selected = (function() {
-          var _i, _len, _ref, _results;
-          _ref = this.model.ships;
-          _results = [];
-          for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-            ship = _ref[_i];
-            if (ship.selected) {
-              _results.push(ship);
-            }
-          }
-          return _results;
-        }).call(this);
-        _ref3 = this.model.ships;
-        for (_o = 0, _len7 = _ref3.length; _o < _len7; _o++) {
-          ship = _ref3[_o];
-          if (ship.owner === players.COMPUTER) {
-            measure = ship.length > ship.width ? ship.length : ship.width;
-            if (utils.abs(realCoord.x - ship.coord.x) < measure / 2 && utils.abs(realCoord.y - ship.coord.y) < measure / 2) {
-              target = ship;
-            }
-          }
-        }
-        if (target != null) {
-          for (_p = 0, _len8 = selected.length; _p < _len8; _p++) {
-            ship = selected[_p];
-            ship.orders[orders.SHOOT_SLOT] = {
-              target: target,
-              slots: utils.getSlots(),
-              orderType: orders.SHOOT_SLOT
-            };
-          }
-        }
       } else {
         toBeSelected = null;
         toBeTargeted = null;
-        _ref4 = this.model.ships;
-        for (_q = 0, _len9 = _ref4.length; _q < _len9; _q++) {
-          ship = _ref4[_q];
+        _ref3 = this.model.ships;
+        for (_q = 0, _len9 = _ref3.length; _q < _len9; _q++) {
+          ship = _ref3[_q];
           measure = ship.length > ship.width ? ship.length : ship.width;
           if (utils.abs(realCoord.x - ship.coord.x) < measure / 2 && utils.abs(realCoord.y - ship.coord.y) < measure / 2) {
             if (ship.owner === players.HUMAN) {
@@ -739,17 +751,17 @@ GameModel = (function() {
           }
         }
         if (toBeSelected != null) {
-          _ref5 = this.model.ships;
-          for (_r = 0, _len10 = _ref5.length; _r < _len10; _r++) {
-            ship = _ref5[_r];
+          _ref4 = this.model.ships;
+          for (_r = 0, _len10 = _ref4.length; _r < _len10; _r++) {
+            ship = _ref4[_r];
             ship.selected = false;
           }
           toBeSelected.selected = true;
         }
         if (toBeTargeted != null) {
-          _ref6 = this.model.ships;
-          for (_s = 0, _len11 = _ref6.length; _s < _len11; _s++) {
-            ship = _ref6[_s];
+          _ref5 = this.model.ships;
+          for (_s = 0, _len11 = _ref5.length; _s < _len11; _s++) {
+            ship = _ref5[_s];
             ship.targeted = false;
           }
           toBeTargeted.targeted = true;
@@ -759,22 +771,24 @@ GameModel = (function() {
     }
     if (!input.selectBox.handled) {
       toBeSelected = [];
-      _ref7 = this.model.ships;
-      for (_t = 0, _len12 = _ref7.length; _t < _len12; _t++) {
-        ship = _ref7[_t];
-        if (ship.owner === players.HUMAN) {
-          if (input.isInBox({
-            x: ship.coord.x - this.viewport.x,
-            y: ship.coord.y - this.viewport.y
-          })) {
+      _ref6 = this.model.ships;
+      for (_t = 0, _len12 = _ref6.length; _t < _len12; _t++) {
+        ship = _ref6[_t];
+        if (input.isInBox({
+          x: ship.coord.x - this.viewport.x,
+          y: ship.coord.y - this.viewport.y
+        })) {
+          if (ship.owner === players.HUMAN) {
             toBeSelected.push(ship);
+          } else {
+            ship.targeted = true;
           }
         }
       }
       if (toBeSelected.length > 0) {
-        _ref8 = this.model.ships;
-        for (_u = 0, _len13 = _ref8.length; _u < _len13; _u++) {
-          ship = _ref8[_u];
+        _ref7 = this.model.ships;
+        for (_u = 0, _len13 = _ref7.length; _u < _len13; _u++) {
+          ship = _ref7[_u];
           ship.selected = __indexOf.call(toBeSelected, ship) >= 0;
         }
       }
@@ -795,19 +809,19 @@ GameModel = (function() {
         this.viewport.y = constants.GAME_HEIGHT - constants.CANVAS_HEIGHT;
       }
     }
-    _ref9 = this.model.ships;
-    for (_v = 0, _len14 = _ref9.length; _v < _len14; _v++) {
-      ship = _ref9[_v];
+    _ref8 = this.model.ships;
+    for (_v = 0, _len14 = _ref8.length; _v < _len14; _v++) {
+      ship = _ref8[_v];
       ship.update(dt);
     }
-    _ref10 = this.model.bullets;
-    for (_w = 0, _len15 = _ref10.length; _w < _len15; _w++) {
-      bullet = _ref10[_w];
+    _ref9 = this.model.bullets;
+    for (_w = 0, _len15 = _ref9.length; _w < _len15; _w++) {
+      bullet = _ref9[_w];
       bullet.update(dt);
     }
-    _ref11 = this.model.explosions;
-    for (_x = 0, _len16 = _ref11.length; _x < _len16; _x++) {
-      explosion = _ref11[_x];
+    _ref10 = this.model.explosions;
+    for (_x = 0, _len16 = _ref10.length; _x < _len16; _x++) {
+      explosion = _ref10[_x];
       explosion.update(dt);
     }
     this.model.ships = (function() {
