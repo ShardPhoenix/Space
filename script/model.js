@@ -17,26 +17,74 @@
 
 Also other customization (colors, appearance)
 
-*/var GameModel, HomingMissile, HomingMissileLauncher, Planet, PlasmaBolt, PlasmaGun, Player, Rocket, RocketLauncher, Ship, Star;
+*/var GameModel, HomingMissile, HomingMissileLauncher, Planet, PlasmaBolt, PlasmaGun, Player, Rocket, RocketExplosion, RocketLauncher, Ship, Star;
 var __indexOf = Array.prototype.indexOf || function(item) {
   for (var i = 0, l = this.length; i < l; i++) {
     if (this[i] === item) return i;
   }
   return -1;
 };
+RocketExplosion = (function() {
+  function RocketExplosion(world, coord) {
+    this.world = world;
+    this.coord = coord;
+    this.damagePerSecond = 100.0;
+    this.secondsToLive = 2.0;
+    this.radius = 100;
+    this.color = colors.YELLOW;
+    this.state = state.ACTIVE;
+  }
+  RocketExplosion.prototype.collided = function(ship) {
+    return utils.abs(ship.coord.x - this.coord.x) < this.radius && utils.abs(ship.coord.y - this.coord.y) < this.radius;
+  };
+  RocketExplosion.prototype.update = function(dt) {
+    var damage, seconds, ship, _i, _len, _ref;
+    seconds = dt / 1000.0;
+    if (this.secondsToLive > 0) {
+      _ref = this.world.model.ships;
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        ship = _ref[_i];
+        if (this.collided(ship)) {
+          damage = this.damagePerSecond * seconds;
+          ship.effects.push({
+            done: false,
+            apply: function(target) {
+              target.hp -= damage;
+              return this.done = true;
+            }
+          });
+        }
+      }
+      this.secondsToLive -= seconds;
+      return this.radius *= this.secondsToLive / 2.0;
+    } else {
+      return this.state = state.DEAD;
+    }
+  };
+  return RocketExplosion;
+})();
 Rocket = (function() {
-  function Rocket(coord, heading) {
+  function Rocket(world, coord, target) {
+    var dx, dy, theta;
     this.distTravelled = 0;
     this.maxDist = 300.0;
     this.damage = 100;
     this.radius = 100;
     this.speed = 200.0;
-    this.coord = coord;
-    this.heading = heading;
+    this.coord = {
+      x: coord.x,
+      y: coord.y
+    };
+    this.targetCoord = target.coord;
     this.color = colors.RED;
-    this.width = 5;
-    this.length = 10;
+    this.width = 10;
+    this.length = 5;
     this.state = state.ACTIVE;
+    this.world = world;
+    dx = target.coord.x - this.coord.x;
+    dy = target.coord.y - this.coord.y;
+    theta = Math.atan2(dy, dx);
+    this.heading = utils.radToDeg(theta + Math.PI / 2);
   }
   Rocket.prototype.update = function(dt) {
     var dist, dx, dy, theta;
@@ -49,24 +97,32 @@ Rocket = (function() {
       this.coord.y -= dy;
       return this.distTravelled += Math.sqrt(dx * dx + dy * dy);
     } else {
-      return this.state = state.DEAD;
+      this.state = state.DEAD;
+      return this.world.model.explosions.push(new RocketExplosion(this.world, this.coord));
     }
   };
   return Rocket;
 })();
 RocketLauncher = (function() {
-  function RocketLauncher() {
-    this.cooldown = 250;
+  function RocketLauncher(world) {
+    this.world = world;
+    this.cooldown = 500;
     this.bulletClass = Rocket;
     this.lastFired = utils.currentTimeMillis();
+    this.targetRange = 300.0;
+    this.ammo = 20;
   }
   RocketLauncher.prototype.readyToFire = function() {
     return (utils.currentTimeMillis() - this.lastFired) > this.cooldown;
   };
-  RocketLauncher.prototype.tryFire = function(coord, heading, list) {
-    if (this.readyToFire()) {
-      list.push(new this.bulletClass(coord, heading));
-      return this.lastFired = utils.currentTimeMillis();
+  RocketLauncher.prototype.inRange = function(coord1, coord2) {
+    return utils.dist(coord1, coord2) < this.targetRange;
+  };
+  RocketLauncher.prototype.tryFire = function(coord, target) {
+    if (this.readyToFire() && this.inRange(coord, target.coord) && this.ammo > 0) {
+      this.world.model.bullets.push(new this.bulletClass(this.world, coord, target));
+      this.lastFired = utils.currentTimeMillis();
+      return this.ammo--;
     }
   };
   return RocketLauncher;
@@ -273,7 +329,7 @@ Ship = (function() {
     this.selected = false;
     this.owner = owner;
     this.plasmaGun = new PlasmaGun(world);
-    this.slots = [new HomingMissileLauncher(world), new PlasmaGun(world), new HomingMissileLauncher(world), new HomingMissileLauncher(world)];
+    this.slots = [new HomingMissileLauncher(world), new RocketLauncher(world), new PlasmaGun(world), new PlasmaGun(world)];
     this.effects = [];
     this.order;
     this.orderType;
@@ -431,6 +487,7 @@ GameModel = (function() {
       }).call(this),
       selected: [],
       bullets: [],
+      explosions: [],
       stars: (function() {
         var _ref, _results;
         _results = [];
@@ -463,7 +520,7 @@ GameModel = (function() {
     };
   };
   GameModel.prototype.update = function(dt) {
-    var bullet, leftClick, mapDrag, measure, realCoord, rightClick, selected, ship, target, toBeSelected, _i, _j, _k, _l, _len, _len10, _len11, _len12, _len13, _len14, _len15, _len2, _len3, _len4, _len5, _len6, _len7, _len8, _len9, _m, _n, _o, _p, _q, _r, _ref, _ref10, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _s, _t, _u, _v, _w;
+    var bullet, explosion, leftClick, mapDrag, measure, realCoord, rightClick, selected, ship, target, toBeSelected, _i, _j, _k, _l, _len, _len10, _len11, _len12, _len13, _len14, _len15, _len16, _len2, _len3, _len4, _len5, _len6, _len7, _len8, _len9, _m, _n, _o, _p, _q, _r, _ref, _ref10, _ref11, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _s, _t, _u, _v, _w, _x;
     if (input.keysHeld[keys.LEFT]) {
       this.viewport.x -= Math.round(constants.KEY_SCROLL_RATE * dt / 1000.0);
       if (this.viewport.x < 0) {
@@ -695,6 +752,11 @@ GameModel = (function() {
       bullet = _ref10[_w];
       bullet.update(dt);
     }
+    _ref11 = this.model.explosions;
+    for (_x = 0, _len16 = _ref11.length; _x < _len16; _x++) {
+      explosion = _ref11[_x];
+      explosion.update(dt);
+    }
     this.model.ships = (function() {
       var _i, _len, _ref, _results;
       _ref = this.model.ships;
@@ -707,7 +769,7 @@ GameModel = (function() {
       }
       return _results;
     }).call(this);
-    return this.model.bullets = (function() {
+    this.model.bullets = (function() {
       var _i, _len, _ref, _results;
       _ref = this.model.bullets;
       _results = [];
@@ -715,6 +777,18 @@ GameModel = (function() {
         bullet = _ref[_i];
         if (bullet.state !== state.DEAD) {
           _results.push(bullet);
+        }
+      }
+      return _results;
+    }).call(this);
+    return this.model.explosions = (function() {
+      var _i, _len, _ref, _results;
+      _ref = this.model.explosions;
+      _results = [];
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        explosion = _ref[_i];
+        if (explosion.state !== state.DEAD) {
+          _results.push(explosion);
         }
       }
       return _results;

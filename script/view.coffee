@@ -44,6 +44,13 @@ class Renderer
         @ctx.translate(star.coord.x - viewport.x, star.coord.y - viewport.y)
         this.drawRect(0, 0, 1, 1, star.color)
         @ctx.restore()
+        
+    renderExplosion: (explosion, viewport) ->
+        @ctx.save()
+        @ctx.translate(explosion.coord.x - viewport.x, explosion.coord.y - viewport.y)
+        if (explosion.radius > 0)
+            this.drawCircle(0, 0, explosion.radius, explosion.color)
+        @ctx.restore()
     
     nearViewport: (coord, viewport) ->
         coord.x > (viewport.x - constants.VIEWPORT_MARGIN) and coord.x < (viewport.x + constants.CANVAS_WIDTH + constants.VIEWPORT_MARGIN) and
@@ -88,6 +95,7 @@ class Renderer
         this.renderPlanet(planet, viewport) for planet in model.planets when this.nearViewport(planet.coord, viewport)
         this.renderShip(ship, viewport) for ship in model.ships when this.nearViewport(ship.coord, viewport)
         this.renderShip(bullet, viewport) for bullet in model.bullets when this.nearViewport(bullet.coord, viewport)
+        this.renderExplosion(explosion, viewport) for explosion in model.explosions when this.nearViewport(explosion.coord, viewport)
         
         #draw select box
         leftPress = input.mouseHeld[mouseButtons.LEFT]

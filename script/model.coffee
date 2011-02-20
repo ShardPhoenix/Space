@@ -23,19 +23,56 @@ Also other customization (colors, appearance)
 #TODO: coords should probably be immutable (prevents bugs with passing in mutable coords)
 
 
+class RocketExplosion
+    constructor: (world, coord) ->
+        @world = world
+        @coord = coord
+        @damagePerSecond = 100.0
+        @secondsToLive = 2.0
+        @radius = 100
+        @color = colors.YELLOW
+        @state = state.ACTIVE
+     
+    collided: (ship) ->
+        utils.abs(ship.coord.x - @coord.x) < @radius and utils.abs(ship.coord.y - @coord.y) < @radius
+     
+    update: (dt) ->
+        seconds = dt/1000.0
+        if @secondsToLive > 0
+            for ship in @world.model.ships
+                if this.collided(ship)
+                    damage = @damagePerSecond * seconds
+                    ship.effects.push(
+                            {
+                                done: false
+                                apply: (target) -> 
+                                    target.hp -= damage
+                                    @done = true
+                            })
+            @secondsToLive -= seconds
+            @radius *= @secondsToLive/2.0
+        else
+            @state = state.DEAD
+
 class Rocket
-    constructor: (coord, heading) ->
+    constructor: (world, coord, target) ->
         @distTravelled = 0
         @maxDist = 300.0
         @damage = 100
         @radius = 100
         @speed = 200.0
-        @coord = coord
-        @heading = heading
+        @coord = {x: coord.x, y: coord.y}
+        @targetCoord = target.coord
         @color = colors.RED
-        @width = 5
-        @length = 10
+        @width = 10
+        @length = 5
         @state = state.ACTIVE
+        @world = world
+        
+        dx = target.coord.x - @coord.x
+        dy = target.coord.y - @coord.y
+        theta = Math.atan2(dy, dx)
+        @heading = utils.radToDeg(theta + Math.PI/2)        
     
     update: (dt) ->
         if @distTravelled < @maxDist
@@ -47,23 +84,31 @@ class Rocket
             @coord.y -= dy
             @distTravelled += Math.sqrt(dx * dx + dy * dy)
         else
-            #TODO: explode
             @state = state.DEAD
-        
+            @world.model.explosions.push(new RocketExplosion(@world, @coord))
+                 
 
 class RocketLauncher
-    constructor: ->
-        @cooldown = 250 #milliseconds
+    constructor: (world) ->
+        @world = world
+        @cooldown = 500 #milliseconds
         @bulletClass = Rocket
         @lastFired = utils.currentTimeMillis()
+        @targetRange = 300.0
+        @ammo = 20
        
     readyToFire: ->
         (utils.currentTimeMillis() - @lastFired) > @cooldown
+        
+    inRange: (coord1, coord2) ->
+        return utils.dist(coord1, coord2) < @targetRange
        
-    tryFire: (coord, heading, list) ->
-        if (this.readyToFire())
-            list.push(new @bulletClass(coord, heading))
+    tryFire: (coord, target) ->
+        if (this.readyToFire() and this.inRange(coord, target.coord) and @ammo > 0)
+            @world.model.bullets.push(new @bulletClass(@world, coord, target))
             @lastFired = utils.currentTimeMillis()
+            @ammo--
+            
             
 class PlasmaBolt
     constructor: (coord, target) ->
@@ -240,7 +285,7 @@ class Ship
         
         @plasmaGun = new PlasmaGun(world)
           
-        @slots = [new HomingMissileLauncher(world), new PlasmaGun(world), new HomingMissileLauncher(world), new HomingMissileLauncher(world)]
+        @slots = [new HomingMissileLauncher(world), new RocketLauncher(world), new PlasmaGun(world), new PlasmaGun(world)]
         
         @effects = []
         
@@ -367,6 +412,7 @@ class GameModel
                     new Planet(this.randomCoord(), 20 + Math.round(Math.random() * 100))
             selected: []
             bullets: []
+            explosions: []
                # for i in [1..constants.NUM_SHIPS]
                     #new HomingMissile(this.randomCoord(), 0.0, startingShips[i-1])
             stars: for i in [1..constants.NUM_STARS]
@@ -503,6 +549,8 @@ class GameModel
     
         ship.update(dt) for ship in @model.ships
         bullet.update(dt) for bullet in @model.bullets
+        explosion.update(dt) for explosion in @model.explosions
                       
         @model.ships = (ship for ship in @model.ships when ship.state != state.DEAD)
         @model.bullets = (bullet for bullet in @model.bullets when bullet.state != state.DEAD)
+        @model.explosions = (explosion for explosion in @model.explosions when explosion.state != state.DEAD)

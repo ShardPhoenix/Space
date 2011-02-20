@@ -11,7 +11,7 @@ constants = {
   VIEWPORT_MARGIN: 200,
   NUM_SHIPS: 250,
   NUM_PLANETS: 25,
-  NUM_STARS: 1500
+  NUM_STARS: 15000
 };
 players = {
   COMPUTER: 0,
@@ -37,6 +37,7 @@ colors = {
   BLUE: "rgba(0,0,255,1.0)",
   GREEN: "rgba(0,255,0,1.0)",
   WHITE: "rgba(255,255,255,1.0)",
+  YELLOW: "rgba(255,255,0,1.0)",
   BACKGROUND: "rgba(0,0,0,1.0)",
   randomColor: function() {
     return "rgba(" + (Math.round(Math.random() * 255)) + "," + (Math.round(Math.random() * 255)) + "," + (Math.round(Math.random() * 255)) + ",1.0)";

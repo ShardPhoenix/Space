@@ -45,6 +45,14 @@ Renderer = (function() {
     this.drawRect(0, 0, 1, 1, star.color);
     return this.ctx.restore();
   };
+  Renderer.prototype.renderExplosion = function(explosion, viewport) {
+    this.ctx.save();
+    this.ctx.translate(explosion.coord.x - viewport.x, explosion.coord.y - viewport.y);
+    if (explosion.radius > 0) {
+      this.drawCircle(0, 0, explosion.radius, explosion.color);
+    }
+    return this.ctx.restore();
+  };
   Renderer.prototype.nearViewport = function(coord, viewport) {
     return coord.x > (viewport.x - constants.VIEWPORT_MARGIN) && coord.x < (viewport.x + constants.CANVAS_WIDTH + constants.VIEWPORT_MARGIN) && coord.y > (viewport.y - constants.VIEWPORT_MARGIN) && coord.y < (viewport.y + constants.CANVAS_HEIGHT + constants.VIEWPORT_MARGIN);
   };
@@ -80,7 +88,7 @@ Renderer = (function() {
     return this.minimap.strokeRect(boxX, boxY, boxWidth, boxHeight);
   };
   Renderer.prototype.render = function(model, viewport) {
-    var bullet, leftPress, planet, ship, star, _i, _j, _k, _l, _len, _len2, _len3, _len4, _ref, _ref2, _ref3, _ref4;
+    var bullet, explosion, leftPress, planet, ship, star, _i, _j, _k, _l, _len, _len2, _len3, _len4, _len5, _m, _ref, _ref2, _ref3, _ref4, _ref5;
     $("#screenCoord").text("Screen X: " + viewport.x + " Screen Y: " + viewport.y);
     this.clear();
     _ref = model.stars;
@@ -109,6 +117,13 @@ Renderer = (function() {
       bullet = _ref4[_l];
       if (this.nearViewport(bullet.coord, viewport)) {
         this.renderShip(bullet, viewport);
+      }
+    }
+    _ref5 = model.explosions;
+    for (_m = 0, _len5 = _ref5.length; _m < _len5; _m++) {
+      explosion = _ref5[_m];
+      if (this.nearViewport(explosion.coord, viewport)) {
+        this.renderExplosion(explosion, viewport);
       }
     }
     leftPress = input.mouseHeld[mouseButtons.LEFT];
