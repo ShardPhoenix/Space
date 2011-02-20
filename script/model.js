@@ -328,11 +328,12 @@ Ship = (function() {
     this.world = world;
     this.hp = 50;
     this.speed = 300;
+    this.rotSpeed = 180;
     this.heading = heading;
     this.coord = coord;
     this.targetCoord = coord;
-    this.width = 20;
-    this.length = 40;
+    this.width = 40;
+    this.length = 20;
     this.color = colors.forPlayer(owner);
     this.state = state.ACTIVE;
     this.selected = false;
@@ -348,7 +349,7 @@ Ship = (function() {
     dy = targetCoord.y - this.coord.y;
     theta = Math.atan2(dy, dx);
     if (utils.abs(dx) > 0 || utils.abs(dy) > 0) {
-      this.heading = utils.radToDeg(theta);
+      this.heading = utils.radToDeg(theta - Math.PI / 2);
     }
     dist = this.speed * dt / 1000.0;
     dx2 = dist * Math.cos(theta);
@@ -358,7 +359,7 @@ Ship = (function() {
     return dist;
   };
   Ship.prototype.update = function(dt) {
-    var anyInRange, attackTargetOrder, effect, moveOrder, newCoord, randomMoveOrder, shootSlotOrder, slot, stopOrder, _i, _j, _len, _len2, _ref, _ref2;
+    var anyInRange, attackTargetOrder, backwardOrder, dist, effect, forwardOrder, moveOrder, newCoord, randomMoveOrder, rotLeftOrder, rotRightOrder, shootSlotOrder, slot, stopOrder, theta, _i, _j, _len, _len2, _ref, _ref2;
     if (this.effects.length > 0) {
       _ref = this.effects;
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
@@ -386,14 +387,40 @@ Ship = (function() {
     shootSlotOrder = this.orders[orders.SHOOT_SLOT];
     randomMoveOrder = this.orders[orders.RANDOM_MOVE];
     stopOrder = this.orders[orders.STOP];
+    forwardOrder = this.orders[orders.ACCEL_FORWARD];
+    backwardOrder = this.orders[orders.ACCEL_BACKWARD];
+    rotLeftOrder = this.orders[orders.ROTATE_LEFT];
+    rotRightOrder = this.orders[orders.ROTATE_RIGHT];
+    if (forwardOrder) {
+      dist = this.speed * dt / 1000.0;
+      theta = utils.degToRad(this.heading + Math.PI / 2);
+      this.coord.x -= dist * Math.sin(theta);
+      this.coord.y += dist * Math.cos(theta);
+    }
+    if (backwardOrder) {
+      dist = this.speed * 0.5 * dt / 1000.0;
+      theta = utils.degToRad(this.heading + Math.PI / 2);
+      this.coord.x += dist * Math.sin(theta);
+      this.coord.y -= dist * Math.cos(theta);
+    }
+    if (rotLeftOrder) {
+      this.heading -= this.rotSpeed * dt / 1000.0;
+    }
+    if (rotRightOrder) {
+      this.heading += this.rotSpeed * dt / 1000.0;
+    }
+    if (forwardOrder || backwardOrder || rotLeftOrder || rotRightOrder) {
+      this.orders[orders.MOVE] = false;
+      this.orders[orders.ATTACK_TARGET] = false;
+    }
     if (stopOrder) {
       this.orders = {};
       return;
     }
     if (moveOrder && (this.coord.x !== moveOrder.targetCoord.x || this.coord.y !== moveOrder.targetCoord.y)) {
       this.moveToward(moveOrder.targetCoord, dt);
-      this.orders[orders.SHOOT_SLOT] = null;
-      this.orders[orders.ATTACK_TARGET] = null;
+      this.orders[orders.SHOOT_SLOT] = false;
+      this.orders[orders.ATTACK_TARGET] = false;
     }
     if (attackTargetOrder) {
       if (attackTargetOrder.target && attackTargetOrder.target.state === state.ACTIVE) {
@@ -403,7 +430,7 @@ Ship = (function() {
           this.moveToward(attackTargetOrder.target.coord, dt);
         }
       } else {
-        this.orders[orders.ATTACK_TARGET] = null;
+        this.orders[orders.ATTACK_TARGET] = false;
       }
     }
     if (shootSlotOrder) {
@@ -416,7 +443,7 @@ Ship = (function() {
             if (this.slots[slot].targetRange > utils.dist(this.coord, shootSlotOrder.target.coord)) {
               anyInRange = true;
               this.slots[slot].tryFire(this.coord, shootSlotOrder.target);
-              this.orders[orders.SHOOT_SLOT] = null;
+              this.orders[orders.SHOOT_SLOT] = false;
             }
           }
         }
@@ -536,7 +563,7 @@ GameModel = (function() {
     };
   };
   GameModel.prototype.update = function(dt) {
-    var bullet, explosion, leftClick, mapDrag, measure, realCoord, rightClick, selected, ship, target, toBeSelected, _i, _j, _k, _l, _len, _len10, _len11, _len12, _len13, _len14, _len15, _len16, _len2, _len3, _len4, _len5, _len6, _len7, _len8, _len9, _m, _n, _o, _p, _q, _r, _ref, _ref10, _ref11, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _s, _t, _u, _v, _w, _x;
+    var bullet, explosion, leftClick, mapDrag, measure, realCoord, rightClick, selected, ship, target, toBeSelected, _i, _j, _k, _l, _len, _len10, _len11, _len12, _len13, _len14, _len15, _len2, _len3, _len4, _len5, _len6, _len7, _len8, _len9, _m, _n, _o, _p, _q, _r, _ref, _ref10, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _s, _t, _u, _v, _w;
     if (input.keysHeld[keys.LEFT]) {
       this.viewport.x -= Math.round(constants.KEY_SCROLL_RATE * dt / 1000.0);
       if (this.viewport.x < 0) {
@@ -561,22 +588,10 @@ GameModel = (function() {
         this.viewport.y = constants.GAME_HEIGHT - constants.CANVAS_HEIGHT;
       }
     }
-    /*
-    if input.keysHeld[keys.W]
-        dist = @speed * dt/1000.0
-        theta = utils.degToRad(@heading)
-        @coord.x += dist * Math.sin(theta)
-        @coord.y -= dist * Math.cos(theta)
-    if input.keysHeld[keys.D]
-        dist = @speed/2 * dt/1000.0
-        theta = utils.degToRad(@heading)
-        @coord.x += dist * Math.sin(theta)
-        @coord.y -= dist * Math.cos(theta)
-    if input.keysHeld[keys.A]
-        @heading -= @rotSpeed * dt/1000.0
-    if input.keysHeld[keys.S]
-        @heading += @rotSpeed * dt/1000.0
-    */
+    this.model.playerShip.orders[orders.ACCEL_FORWARD] = input.keysHeld[keys.W];
+    this.model.playerShip.orders[orders.ACCEL_BACKWARD] = input.keysHeld[keys.S];
+    this.model.playerShip.orders[orders.ROTATE_LEFT] = input.keysHeld[keys.A];
+    this.model.playerShip.orders[orders.ROTATE_RIGHT] = input.keysHeld[keys.D];
     rightClick = input.mouseClicked[mouseButtons.RIGHT];
     if ((rightClick != null) && !rightClick.handled) {
       target = null;
@@ -622,18 +637,6 @@ GameModel = (function() {
       }
       rightClick.handled = true;
     }
-    if (input.keysHeld[keys.S]) {
-      _ref2 = this.model.ships;
-      for (_l = 0, _len4 = _ref2.length; _l < _len4; _l++) {
-        ship = _ref2[_l];
-        if (ship.selected) {
-          ship.orders[orders.STOP] = {
-            targetCoord: {},
-            orderType: orders.STOP
-          };
-        }
-      }
-    }
     leftClick = input.mouseClicked[mouseButtons.LEFT];
     if ((leftClick != null) && !leftClick.handled) {
       realCoord = this.gameCoord(leftClick.coord);
@@ -651,9 +654,9 @@ GameModel = (function() {
           }
           return _results;
         }).call(this);
-        _ref3 = this.model.ships;
-        for (_m = 0, _len5 = _ref3.length; _m < _len5; _m++) {
-          ship = _ref3[_m];
+        _ref2 = this.model.ships;
+        for (_l = 0, _len4 = _ref2.length; _l < _len4; _l++) {
+          ship = _ref2[_l];
           if (ship.owner === players.COMPUTER) {
             measure = ship.length > ship.width ? ship.length : ship.width;
             if (utils.abs(realCoord.x - ship.coord.x) < measure / 2 && utils.abs(realCoord.y - ship.coord.y) < measure / 2) {
@@ -662,16 +665,16 @@ GameModel = (function() {
           }
         }
         if (target != null) {
-          for (_n = 0, _len6 = selected.length; _n < _len6; _n++) {
-            ship = selected[_n];
+          for (_m = 0, _len5 = selected.length; _m < _len5; _m++) {
+            ship = selected[_m];
             ship.orders[orders.ATTACK_TARGET] = {
               target: target,
               orderType: orders.ATTACK_TARGET
             };
           }
         } else {
-          for (_o = 0, _len7 = selected.length; _o < _len7; _o++) {
-            ship = selected[_o];
+          for (_n = 0, _len6 = selected.length; _n < _len6; _n++) {
+            ship = selected[_n];
             ship.orders[orders.ATTACK_AREA] = {
               targetCoord: realCoord,
               orderType: orders.ATTACK_AREA
@@ -679,7 +682,7 @@ GameModel = (function() {
           }
         }
       }
-      if (input.keysHeld[keys.Q] || input.keysHeld[keys.W] || input.keysHeld[keys.E] || input.keysHeld[keys.R]) {
+      if (input.keysHeld[keys.Q] || input.keysHeld[keys.E] || input.keysHeld[keys.R] || input.keysHeld[keys.F]) {
         target = null;
         selected = (function() {
           var _i, _len, _ref, _results;
@@ -693,9 +696,9 @@ GameModel = (function() {
           }
           return _results;
         }).call(this);
-        _ref4 = this.model.ships;
-        for (_p = 0, _len8 = _ref4.length; _p < _len8; _p++) {
-          ship = _ref4[_p];
+        _ref3 = this.model.ships;
+        for (_o = 0, _len7 = _ref3.length; _o < _len7; _o++) {
+          ship = _ref3[_o];
           if (ship.owner === players.COMPUTER) {
             measure = ship.length > ship.width ? ship.length : ship.width;
             if (utils.abs(realCoord.x - ship.coord.x) < measure / 2 && utils.abs(realCoord.y - ship.coord.y) < measure / 2) {
@@ -704,8 +707,8 @@ GameModel = (function() {
           }
         }
         if (target != null) {
-          for (_q = 0, _len9 = selected.length; _q < _len9; _q++) {
-            ship = selected[_q];
+          for (_p = 0, _len8 = selected.length; _p < _len8; _p++) {
+            ship = selected[_p];
             ship.orders[orders.SHOOT_SLOT] = {
               target: target,
               slots: utils.getSlots(),
@@ -715,9 +718,9 @@ GameModel = (function() {
         }
       } else {
         toBeSelected = null;
-        _ref5 = this.model.ships;
-        for (_r = 0, _len10 = _ref5.length; _r < _len10; _r++) {
-          ship = _ref5[_r];
+        _ref4 = this.model.ships;
+        for (_q = 0, _len9 = _ref4.length; _q < _len9; _q++) {
+          ship = _ref4[_q];
           if (ship.owner === players.HUMAN) {
             measure = ship.length > ship.width ? ship.length : ship.width;
             if (utils.abs(realCoord.x - ship.coord.x) < measure / 2 && utils.abs(realCoord.y - ship.coord.y) < measure / 2) {
@@ -726,9 +729,9 @@ GameModel = (function() {
           }
         }
         if (toBeSelected != null) {
-          _ref6 = this.model.ships;
-          for (_s = 0, _len11 = _ref6.length; _s < _len11; _s++) {
-            ship = _ref6[_s];
+          _ref5 = this.model.ships;
+          for (_r = 0, _len10 = _ref5.length; _r < _len10; _r++) {
+            ship = _ref5[_r];
             ship.selected = false;
           }
           toBeSelected.selected = true;
@@ -738,9 +741,9 @@ GameModel = (function() {
     }
     if (!input.selectBox.handled) {
       toBeSelected = [];
-      _ref7 = this.model.ships;
-      for (_t = 0, _len12 = _ref7.length; _t < _len12; _t++) {
-        ship = _ref7[_t];
+      _ref6 = this.model.ships;
+      for (_s = 0, _len11 = _ref6.length; _s < _len11; _s++) {
+        ship = _ref6[_s];
         if (ship.owner === players.HUMAN) {
           if (input.isInBox({
             x: ship.coord.x - this.viewport.x,
@@ -751,9 +754,9 @@ GameModel = (function() {
         }
       }
       if (toBeSelected.length > 0) {
-        _ref8 = this.model.ships;
-        for (_u = 0, _len13 = _ref8.length; _u < _len13; _u++) {
-          ship = _ref8[_u];
+        _ref7 = this.model.ships;
+        for (_t = 0, _len12 = _ref7.length; _t < _len12; _t++) {
+          ship = _ref7[_t];
           ship.selected = __indexOf.call(toBeSelected, ship) >= 0;
         }
       }
@@ -774,19 +777,19 @@ GameModel = (function() {
         this.viewport.y = constants.GAME_HEIGHT - constants.CANVAS_HEIGHT;
       }
     }
-    _ref9 = this.model.ships;
-    for (_v = 0, _len14 = _ref9.length; _v < _len14; _v++) {
-      ship = _ref9[_v];
+    _ref8 = this.model.ships;
+    for (_u = 0, _len13 = _ref8.length; _u < _len13; _u++) {
+      ship = _ref8[_u];
       ship.update(dt);
     }
-    _ref10 = this.model.bullets;
-    for (_w = 0, _len15 = _ref10.length; _w < _len15; _w++) {
-      bullet = _ref10[_w];
+    _ref9 = this.model.bullets;
+    for (_v = 0, _len14 = _ref9.length; _v < _len14; _v++) {
+      bullet = _ref9[_v];
       bullet.update(dt);
     }
-    _ref11 = this.model.explosions;
-    for (_x = 0, _len16 = _ref11.length; _x < _len16; _x++) {
-      explosion = _ref11[_x];
+    _ref10 = this.model.explosions;
+    for (_w = 0, _len15 = _ref10.length; _w < _len15; _w++) {
+      explosion = _ref10[_w];
       explosion.update(dt);
     }
     this.model.ships = (function() {

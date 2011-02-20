@@ -19,11 +19,11 @@ utils =
         slots = []
         if input.keysHeld[keys.Q]
             slots.push(0)
-        if input.keysHeld[keys.W]
-            slots.push(1)
         if input.keysHeld[keys.E]
-            slots.push(2)
+            slots.push(1)
         if input.keysHeld[keys.R]
+            slots.push(2)
+        if input.keysHeld[keys.F]
             slots.push(3)
         return slots
               

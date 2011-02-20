@@ -281,12 +281,14 @@ class Ship
     constructor: (world, owner, coord, heading) ->
         @world = world
         @hp = 50
-        @speed = 300
+        @speed = 300 #pix per second
+        @rotSpeed = 180 #degrees per second
         @heading = heading #angle with the positive x-axis
+        
         @coord = coord
         @targetCoord = coord
-        @width = 20
-        @length = 40
+        @width = 40
+        @length = 20
         @color = colors.forPlayer(owner)
         @state = state.ACTIVE
         @selected = false
@@ -307,7 +309,7 @@ class Ship
             theta = Math.atan2(dy, dx)
             
             if utils.abs(dx) > 0 or utils.abs(dy) > 0
-                @heading = utils.radToDeg(theta)
+                @heading = utils.radToDeg(theta - Math.PI/2)
             
             #$("#debug").text("Heading: #{@heading}")
             
@@ -340,14 +342,38 @@ class Ship
         randomMoveOrder = @orders[orders.RANDOM_MOVE]
         stopOrder = @orders[orders.STOP]
         
+        forwardOrder = @orders[orders.ACCEL_FORWARD]  
+        backwardOrder = @orders[orders.ACCEL_BACKWARD]
+        rotLeftOrder = @orders[orders.ROTATE_LEFT]
+        rotRightOrder = @orders[orders.ROTATE_RIGHT]
+        
+        if forwardOrder
+            dist = @speed * dt/1000.0
+            theta = utils.degToRad(@heading + Math.PI/2)
+            @coord.x -= dist * Math.sin(theta)
+            @coord.y += dist * Math.cos(theta)
+        if backwardOrder
+            dist = @speed * 0.5 * dt/1000.0
+            theta = utils.degToRad(@heading + Math.PI/2)
+            @coord.x += dist * Math.sin(theta)
+            @coord.y -= dist * Math.cos(theta)
+        if rotLeftOrder
+            @heading -= @rotSpeed * dt/1000.0
+        if rotRightOrder
+            @heading += @rotSpeed * dt/1000.0
+            
+        if forwardOrder or backwardOrder or rotLeftOrder or rotRightOrder
+            @orders[orders.MOVE] = false
+            @orders[orders.ATTACK_TARGET] = false
+        
         if stopOrder
             @orders = {} #cancel all orders             
             return #don't do anything else
         
         if moveOrder and (@coord.x != moveOrder.targetCoord.x or @coord.y != moveOrder.targetCoord.y)
             this.moveToward(moveOrder.targetCoord, dt)
-            @orders[orders.SHOOT_SLOT] = null
-            @orders[orders.ATTACK_TARGET] = null
+            @orders[orders.SHOOT_SLOT] = false
+            @orders[orders.ATTACK_TARGET] = false
             
         if attackTargetOrder
             if attackTargetOrder.target and attackTargetOrder.target.state == state.ACTIVE
@@ -356,7 +382,7 @@ class Ship
                 else
                     this.moveToward(attackTargetOrder.target.coord, dt)
             else
-                @orders[orders.ATTACK_TARGET] = null
+                @orders[orders.ATTACK_TARGET] = false
        
         if shootSlotOrder
             if shootSlotOrder.target and shootSlotOrder.target.state == state.ACTIVE
@@ -366,7 +392,7 @@ class Ship
                         if @slots[slot].targetRange > utils.dist(@coord, shootSlotOrder.target.coord)
                             anyInRange = true
                             @slots[slot].tryFire(@coord, shootSlotOrder.target)
-                            @orders[orders.SHOOT_SLOT] = null
+                            @orders[orders.SHOOT_SLOT] = false
                 if !anyInRange
                     this.moveToward(shootSlotOrder.target.coord, dt)
                                 
@@ -464,28 +490,12 @@ class GameModel
             @viewport.y += Math.round(constants.KEY_SCROLL_RATE * dt/1000.0)
             if @viewport.y > (constants.GAME_HEIGHT - constants.CANVAS_HEIGHT) then @viewport.y = (constants.GAME_HEIGHT - constants.CANVAS_HEIGHT)
             
-            
-            
-        ###
-        if input.keysHeld[keys.W]
-            dist = @speed * dt/1000.0
-            theta = utils.degToRad(@heading)
-            @coord.x += dist * Math.sin(theta)
-            @coord.y -= dist * Math.cos(theta)
-        if input.keysHeld[keys.D]
-            dist = @speed/2 * dt/1000.0
-            theta = utils.degToRad(@heading)
-            @coord.x += dist * Math.sin(theta)
-            @coord.y -= dist * Math.cos(theta)      
-        if input.keysHeld[keys.A]
-            @heading -= @rotSpeed * dt/1000.0
-        if input.keysHeld[keys.S]
-            @heading += @rotSpeed * dt/1000.0
-        ###
-            
-        
-    
-    
+                       
+        @model.playerShip.orders[orders.ACCEL_FORWARD] = input.keysHeld[keys.W]           
+        @model.playerShip.orders[orders.ACCEL_BACKWARD] = input.keysHeld[keys.S]           
+        @model.playerShip.orders[orders.ROTATE_LEFT] = input.keysHeld[keys.A]        
+        @model.playerShip.orders[orders.ROTATE_RIGHT] = input.keysHeld[keys.D]
+
         rightClick = input.mouseClicked[mouseButtons.RIGHT]
         if rightClick? and !rightClick.handled
             target = null
@@ -503,10 +513,10 @@ class GameModel
                     ship.orders[orders.MOVE] = {targetCoord: realCoord, orderType: orders.MOVE}
             rightClick.handled = true
             
-        if input.keysHeld[keys.S]
-            for ship in @model.ships
-                if ship.selected
-                    ship.orders[orders.STOP] = {targetCoord: {}, orderType: orders.STOP}
+        #if input.keysHeld[keys.S]
+        #    for ship in @model.ships
+        #       if ship.selected
+        #            ship.orders[orders.STOP] = {targetCoord: {}, orderType: orders.STOP}
             
         leftClick = input.mouseClicked[mouseButtons.LEFT]
         if leftClick? and !leftClick.handled
@@ -527,7 +537,7 @@ class GameModel
                         ship.orders[orders.ATTACK_AREA] = {targetCoord: realCoord, orderType: orders.ATTACK_AREA}
                                    
             
-            if input.keysHeld[keys.Q] or input.keysHeld[keys.W] or input.keysHeld[keys.E] or input.keysHeld[keys.R] #handle as slot attack
+            if input.keysHeld[keys.Q] or input.keysHeld[keys.E] or input.keysHeld[keys.R] or input.keysHeld[keys.F] #handle as slot attack
                 target = null
                 selected = (ship for ship in @model.ships when ship.selected)
                 for ship in @model.ships when ship.owner == players.COMPUTER
