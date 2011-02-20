@@ -17,6 +17,15 @@
 
 Also other customization (colors, appearance)
 
+Ideas:
+    - Move and shoot with keys, target with mouse (Mech/WoW style)
+    - Slots of varying sizes (different per ship model) for weapons, defenses, engines, misc comms + scanning, etc
+    - Objects - black holes (dungeons?), stars (recharge), stations (bases/shops), planets (mining?), asteroids, wormholes
+    - Players can do stuff with bases they control - scanning, manufacturing, player-owned shop, etc
+    - Metal + energy as resources
+    - Ship energy - used to fire, for shields, for fast travel. Like mana.
+
+
 */var GameModel, HomingMissile, HomingMissileLauncher, Planet, PlasmaBolt, PlasmaGun, Player, Rocket, RocketExplosion, RocketLauncher, Ship, Star;
 var __indexOf = Array.prototype.indexOf || function(item) {
   for (var i = 0, l = this.length; i < l; i++) {
@@ -67,7 +76,7 @@ Rocket = (function() {
   function Rocket(world, coord, target) {
     var dx, dy, theta;
     this.distTravelled = 0;
-    this.maxDist = 300.0;
+    this.maxDist = utils.dist(coord, target.coord);
     this.damage = 100;
     this.radius = 100;
     this.speed = 200.0;
@@ -75,7 +84,6 @@ Rocket = (function() {
       x: coord.x,
       y: coord.y
     };
-    this.targetCoord = target.coord;
     this.color = colors.RED;
     this.width = 10;
     this.length = 5;
@@ -109,7 +117,7 @@ RocketLauncher = (function() {
     this.cooldown = 500;
     this.bulletClass = Rocket;
     this.lastFired = utils.currentTimeMillis();
-    this.targetRange = 300.0;
+    this.targetRange = 400.0;
     this.ammo = 20;
   }
   RocketLauncher.prototype.readyToFire = function() {

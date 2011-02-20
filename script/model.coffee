@@ -16,6 +16,15 @@
  
  
 Also other customization (colors, appearance)
+
+Ideas:
+    - Move and shoot with keys, target with mouse (Mech/WoW style)
+    - Slots of varying sizes (different per ship model) for weapons, defenses, engines, misc comms + scanning, etc
+    - Objects - black holes (dungeons?), stars (recharge), stations (bases/shops), planets (mining?), asteroids, wormholes
+    - Players can do stuff with bases they control - scanning, manufacturing, player-owned shop, etc
+    - Metal + energy as resources
+    - Ship energy - used to fire, for shields, for fast travel. Like mana.
+    
  
 ###
 
@@ -57,12 +66,11 @@ class RocketExplosion
 class Rocket
     constructor: (world, coord, target) ->
         @distTravelled = 0
-        @maxDist = 300.0
+        @maxDist = utils.dist(coord, target.coord)
         @damage = 100
         @radius = 100
         @speed = 200.0
         @coord = {x: coord.x, y: coord.y}
-        @targetCoord = target.coord
         @color = colors.RED
         @width = 10
         @length = 5
@@ -94,7 +102,7 @@ class RocketLauncher
         @cooldown = 500 #milliseconds
         @bulletClass = Rocket
         @lastFired = utils.currentTimeMillis()
-        @targetRange = 300.0
+        @targetRange = 400.0
         @ammo = 20
        
     readyToFire: ->
