@@ -281,7 +281,7 @@ class Ship
     constructor: (world, owner, coord, heading) ->
         @world = world
         @hp = 50
-        @speed = 300 #pix per second
+        @speed = 150 #pix per second
         @rotSpeed = 180 #degrees per second
         @heading = heading #angle with the positive x-axis
         
@@ -354,7 +354,7 @@ class Ship
             @coord.x -= dist * Math.sin(theta)
             @coord.y += dist * Math.cos(theta)
         if backwardOrder
-            dist = @speed * 0.5 * dt/1000.0
+            dist = @speed * 0.66666 * dt/1000.0
             theta = utils.degToRad(@heading + Math.PI/2)
             @coord.x += dist * Math.sin(theta)
             @coord.y -= dist * Math.cos(theta)
@@ -399,7 +399,7 @@ class Ship
                                 
         if randomMoveOrder
             if randomMoveOrder.distTravelled < randomMoveOrder.distToMove
-                randomMoveOrder.distTravelled += this.moveToward(randomMoveOrder.targetCoord, dt/4) #go slower
+                randomMoveOrder.distTravelled += this.moveToward(randomMoveOrder.targetCoord, dt)
             else
                 newCoord = 
                     x: (@coord.x - 100 + Math.round(Math.random() * 200))

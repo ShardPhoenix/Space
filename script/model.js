@@ -327,7 +327,7 @@ Ship = (function() {
   function Ship(world, owner, coord, heading) {
     this.world = world;
     this.hp = 50;
-    this.speed = 300;
+    this.speed = 150;
     this.rotSpeed = 180;
     this.heading = heading;
     this.coord = coord;
@@ -399,7 +399,7 @@ Ship = (function() {
       this.coord.y += dist * Math.cos(theta);
     }
     if (backwardOrder) {
-      dist = this.speed * 0.5 * dt / 1000.0;
+      dist = this.speed * 0.66666 * dt / 1000.0;
       theta = utils.degToRad(this.heading + Math.PI / 2);
       this.coord.x += dist * Math.sin(theta);
       this.coord.y -= dist * Math.cos(theta);
@@ -455,7 +455,7 @@ Ship = (function() {
     }
     if (randomMoveOrder) {
       if (randomMoveOrder.distTravelled < randomMoveOrder.distToMove) {
-        return randomMoveOrder.distTravelled += this.moveToward(randomMoveOrder.targetCoord, dt / 4);
+        return randomMoveOrder.distTravelled += this.moveToward(randomMoveOrder.targetCoord, dt);
       } else {
         newCoord = {
           x: this.coord.x - 100 + Math.round(Math.random() * 200),
