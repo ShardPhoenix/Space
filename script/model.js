@@ -389,7 +389,7 @@ Star = (function() {
 })();
 GameModel = (function() {
   function GameModel() {
-    var i, ship, startingShips, _i, _len;
+    var i, playerStart, ship, startingShips, _i, _len;
     this.viewport = {
       x: 0,
       y: 0
@@ -398,10 +398,16 @@ GameModel = (function() {
       var _ref, _results;
       _results = [];
       for (i = 1, _ref = constants.NUM_SHIPS; (1 <= _ref ? i <= _ref : i >= _ref); (1 <= _ref ? i += 1 : i -= 1)) {
-        _results.push(new Ship(this, (Math.random() > 0.5 ? players.COMPUTER : players.HUMAN), this.randomCoord(), Math.round(Math.random() * 360.0)));
+        _results.push(new Ship(this, players.COMPUTER, this.randomCoord(), Math.round(Math.random() * 360.0)));
       }
       return _results;
     }).call(this);
+    playerStart = this.randomCoord();
+    startingShips.push(new Ship(this, players.HUMAN, playerStart, Math.round(Math.random() * 360.0)));
+    this.viewport = {
+      x: playerStart.x - constants.CANVAS_WIDTH / 2,
+      y: playerStart.y - constants.CANVAS_HEIGHT / 2
+    };
     for (_i = 0, _len = startingShips.length; _i < _len; _i++) {
       ship = startingShips[_i];
       if (ship.owner === players.COMPUTER) {

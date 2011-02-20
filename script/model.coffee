@@ -348,7 +348,12 @@ class GameModel
         @viewport = {x: 0, y: 0}
         
         startingShips = for i in [1..constants.NUM_SHIPS]
-                            new Ship(this, (if Math.random() > 0.5 then players.COMPUTER else players.HUMAN), this.randomCoord(), Math.round(Math.random() * 360.0))
+                            new Ship(this, players.COMPUTER, this.randomCoord(), Math.round(Math.random() * 360.0))
+                            
+        playerStart = this.randomCoord()
+        startingShips.push new Ship(this, players.HUMAN, playerStart, Math.round(Math.random() * 360.0))
+        
+        @viewport = {x: playerStart.x - constants.CANVAS_WIDTH/2, y: playerStart.y - constants.CANVAS_HEIGHT/2}
             
         #start computer ships moving randomly
         for ship in startingShips
