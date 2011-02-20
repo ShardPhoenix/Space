@@ -292,6 +292,7 @@ class Ship
         @color = colors.forPlayer(owner)
         @state = state.ACTIVE
         @selected = false
+        @targeted = false
         @owner = owner
         
         @plasmaGun = new PlasmaGun(world)
@@ -431,6 +432,7 @@ class GameModel
                             
         playerStart = this.randomCoord()
         thePlayerShip = new Ship(this, players.HUMAN, playerStart, Math.round(Math.random() * 360.0))
+        thePlayerShip.selected = true
         startingShips.push thePlayerShip         
         
         @viewport = {x: playerStart.x - constants.CANVAS_WIDTH/2, y: playerStart.y - constants.CANVAS_HEIGHT/2}
@@ -446,7 +448,6 @@ class GameModel
             planets:
                 for i in [1..constants.NUM_PLANETS]
                     new Planet(this.randomCoord(), 20 + Math.round(Math.random() * 100))
-            selected: []
             bullets: []
             explosions: []
                # for i in [1..constants.NUM_SHIPS]
@@ -525,7 +526,7 @@ class GameModel
         if leftClick? and !leftClick.handled
             realCoord = this.gameCoord(leftClick.coord)
             
-            if input.keysHeld[keys.A] #handle as an attack
+            if input.keysHeld[keys.TODO_NEW_ATTACK_KEY] #handle as an attack
                 target = null
                 selected = (ship for ship in @model.ships when ship.selected)
                 for ship in @model.ships when ship.owner == players.COMPUTER
@@ -553,14 +554,20 @@ class GameModel
                        
             else #handle as a select
                 toBeSelected = null
-                for ship in @model.ships when ship.owner == players.HUMAN
+                toBeTargeted = null
+                for ship in @model.ships
                     measure = if ship.length > ship.width then ship.length else ship.width
                     if utils.abs(realCoord.x - ship.coord.x) < measure/2 and utils.abs(realCoord.y - ship.coord.y) < measure/2
-                        toBeSelected = ship
-                
+                        if ship.owner == players.HUMAN
+                            toBeSelected = ship
+                        else
+                            toBeTargeted = ship
                 if toBeSelected?
                     ship.selected = false for ship in @model.ships
                     toBeSelected.selected = true
+                if toBeTargeted?
+                    ship.targeted = false for ship in @model.ships
+                    toBeTargeted.targeted = true
                     
             leftClick.handled = true
     

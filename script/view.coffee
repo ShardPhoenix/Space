@@ -25,9 +25,9 @@ class Renderer
         @ctx.rotate(utils.degToRad(ship.heading) - Math.PI/2)
         this.drawRect(-ship.width/2, -ship.length/2, ship.width, ship.length, ship.color)
         #this.drawRect(0, 0, 1, 1, colors.RED) #color ship's actual coord
-        if ship.selected
+        if ship.selected or ship.targeted
             @ctx.lineWidth = 2
-            @ctx.strokeStyle = colors.GREEN
+            @ctx.strokeStyle = if ship.selected then colors.GREEN else colors.RED
             @ctx.strokeRect(-ship.width/2, -ship.length/2, ship.width, ship.length)
         @ctx.restore()
         

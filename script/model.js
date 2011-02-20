@@ -337,6 +337,7 @@ Ship = (function() {
     this.color = colors.forPlayer(owner);
     this.state = state.ACTIVE;
     this.selected = false;
+    this.targeted = false;
     this.owner = owner;
     this.plasmaGun = new PlasmaGun(world);
     this.slots = [new HomingMissileLauncher(world), new RocketLauncher(world), new PlasmaGun(world), new PlasmaGun(world)];
@@ -501,6 +502,7 @@ GameModel = (function() {
     }).call(this);
     playerStart = this.randomCoord();
     thePlayerShip = new Ship(this, players.HUMAN, playerStart, Math.round(Math.random() * 360.0));
+    thePlayerShip.selected = true;
     startingShips.push(thePlayerShip);
     this.viewport = {
       x: playerStart.x - constants.CANVAS_WIDTH / 2,
@@ -528,7 +530,6 @@ GameModel = (function() {
         }
         return _results;
       }).call(this),
-      selected: [],
       bullets: [],
       explosions: [],
       stars: (function() {
@@ -563,7 +564,7 @@ GameModel = (function() {
     };
   };
   GameModel.prototype.update = function(dt) {
-    var bullet, explosion, leftClick, mapDrag, measure, realCoord, rightClick, selected, ship, target, toBeSelected, _i, _j, _k, _l, _len, _len10, _len11, _len12, _len13, _len14, _len15, _len2, _len3, _len4, _len5, _len6, _len7, _len8, _len9, _m, _n, _o, _p, _q, _r, _ref, _ref10, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _s, _t, _u, _v, _w;
+    var bullet, explosion, leftClick, mapDrag, measure, realCoord, rightClick, selected, ship, target, toBeSelected, toBeTargeted, _i, _j, _k, _l, _len, _len10, _len11, _len12, _len13, _len14, _len15, _len16, _len2, _len3, _len4, _len5, _len6, _len7, _len8, _len9, _m, _n, _o, _p, _q, _r, _ref, _ref10, _ref11, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _s, _t, _u, _v, _w, _x;
     if (input.keysHeld[keys.LEFT]) {
       this.viewport.x -= Math.round(constants.KEY_SCROLL_RATE * dt / 1000.0);
       if (this.viewport.x < 0) {
@@ -646,7 +647,7 @@ GameModel = (function() {
     leftClick = input.mouseClicked[mouseButtons.LEFT];
     if ((leftClick != null) && !leftClick.handled) {
       realCoord = this.gameCoord(leftClick.coord);
-      if (input.keysHeld[keys.A]) {
+      if (input.keysHeld[keys.TODO_NEW_ATTACK_KEY]) {
         target = null;
         selected = (function() {
           var _i, _len, _ref, _results;
@@ -724,13 +725,16 @@ GameModel = (function() {
         }
       } else {
         toBeSelected = null;
+        toBeTargeted = null;
         _ref4 = this.model.ships;
         for (_q = 0, _len9 = _ref4.length; _q < _len9; _q++) {
           ship = _ref4[_q];
-          if (ship.owner === players.HUMAN) {
-            measure = ship.length > ship.width ? ship.length : ship.width;
-            if (utils.abs(realCoord.x - ship.coord.x) < measure / 2 && utils.abs(realCoord.y - ship.coord.y) < measure / 2) {
+          measure = ship.length > ship.width ? ship.length : ship.width;
+          if (utils.abs(realCoord.x - ship.coord.x) < measure / 2 && utils.abs(realCoord.y - ship.coord.y) < measure / 2) {
+            if (ship.owner === players.HUMAN) {
               toBeSelected = ship;
+            } else {
+              toBeTargeted = ship;
             }
           }
         }
@@ -742,14 +746,22 @@ GameModel = (function() {
           }
           toBeSelected.selected = true;
         }
+        if (toBeTargeted != null) {
+          _ref6 = this.model.ships;
+          for (_s = 0, _len11 = _ref6.length; _s < _len11; _s++) {
+            ship = _ref6[_s];
+            ship.targeted = false;
+          }
+          toBeTargeted.targeted = true;
+        }
       }
       leftClick.handled = true;
     }
     if (!input.selectBox.handled) {
       toBeSelected = [];
-      _ref6 = this.model.ships;
-      for (_s = 0, _len11 = _ref6.length; _s < _len11; _s++) {
-        ship = _ref6[_s];
+      _ref7 = this.model.ships;
+      for (_t = 0, _len12 = _ref7.length; _t < _len12; _t++) {
+        ship = _ref7[_t];
         if (ship.owner === players.HUMAN) {
           if (input.isInBox({
             x: ship.coord.x - this.viewport.x,
@@ -760,9 +772,9 @@ GameModel = (function() {
         }
       }
       if (toBeSelected.length > 0) {
-        _ref7 = this.model.ships;
-        for (_t = 0, _len12 = _ref7.length; _t < _len12; _t++) {
-          ship = _ref7[_t];
+        _ref8 = this.model.ships;
+        for (_u = 0, _len13 = _ref8.length; _u < _len13; _u++) {
+          ship = _ref8[_u];
           ship.selected = __indexOf.call(toBeSelected, ship) >= 0;
         }
       }
@@ -783,19 +795,19 @@ GameModel = (function() {
         this.viewport.y = constants.GAME_HEIGHT - constants.CANVAS_HEIGHT;
       }
     }
-    _ref8 = this.model.ships;
-    for (_u = 0, _len13 = _ref8.length; _u < _len13; _u++) {
-      ship = _ref8[_u];
+    _ref9 = this.model.ships;
+    for (_v = 0, _len14 = _ref9.length; _v < _len14; _v++) {
+      ship = _ref9[_v];
       ship.update(dt);
     }
-    _ref9 = this.model.bullets;
-    for (_v = 0, _len14 = _ref9.length; _v < _len14; _v++) {
-      bullet = _ref9[_v];
+    _ref10 = this.model.bullets;
+    for (_w = 0, _len15 = _ref10.length; _w < _len15; _w++) {
+      bullet = _ref10[_w];
       bullet.update(dt);
     }
-    _ref10 = this.model.explosions;
-    for (_w = 0, _len15 = _ref10.length; _w < _len15; _w++) {
-      explosion = _ref10[_w];
+    _ref11 = this.model.explosions;
+    for (_x = 0, _len16 = _ref11.length; _x < _len16; _x++) {
+      explosion = _ref11[_x];
       explosion.update(dt);
     }
     this.model.ships = (function() {

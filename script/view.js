@@ -25,9 +25,9 @@ Renderer = (function() {
     this.ctx.translate(ship.coord.x - viewport.x, ship.coord.y - viewport.y);
     this.ctx.rotate(utils.degToRad(ship.heading) - Math.PI / 2);
     this.drawRect(-ship.width / 2, -ship.length / 2, ship.width, ship.length, ship.color);
-    if (ship.selected) {
+    if (ship.selected || ship.targeted) {
       this.ctx.lineWidth = 2;
-      this.ctx.strokeStyle = colors.GREEN;
+      this.ctx.strokeStyle = ship.selected ? colors.GREEN : colors.RED;
       this.ctx.strokeRect(-ship.width / 2, -ship.length / 2, ship.width, ship.length);
     }
     return this.ctx.restore();
